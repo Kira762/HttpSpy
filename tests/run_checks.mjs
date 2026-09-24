@@ -45,29 +45,36 @@ const serializerChecks = readFileSync(join(here, 'serializer_checks.luau'), 'utf
 const apiChecks = readFileSync(join(here, 'api_checks.luau'), 'utf8');
 const loaderChecks = readFileSync(join(here, 'loader_checks.luau'), 'utf8');
 
-const lua = await Lua.create({ sandbox: false });
-console.log(`Luau ${lua.version}\n`);
+// Every step gets its own Lua state: the scripts install globals (and the stub builds large
+// proxy graphs), and sharing one state makes a single wasm trap poison the later checks.
+const createLua = async () => {
+  const state = await Lua.create({ sandbox: false });
+  // The runtime has no loadstring by default; provide the executor-style global the
+  // vendored scripts expect.
+  state.globals.set('loadstring', state.createFunction((source, chunkName) => {
+    if (typeof source !== 'string') {
+      return intoLua.multiple(null, 'loadstring: source must be a string');
+    }
+    try {
+      const chunkNameValue = typeof chunkName === 'string' ? chunkName : 'chunk';
+      return intoLua.multiple(state.load(source, { chunkName: chunkNameValue }));
+    } catch (error) {
+      return intoLua.multiple(null, String(error.message ?? error).slice(0, 300));
+    }
+  }));
+  return state;
+};
 
-// The runtime has no loadstring by default; provide the executor-style global the
-// vendored scripts expect.
-lua.globals.set('loadstring', lua.createFunction((source, chunkName) => {
-  if (typeof source !== 'string') {
-    return intoLua.multiple(null, 'loadstring: source must be a string');
-  }
-  try {
-    const chunkNameValue = typeof chunkName === 'string' ? chunkName : 'chunk';
-    return intoLua.multiple(lua.load(source, { chunkName: chunkNameValue }));
-  } catch (error) {
-    return intoLua.multiple(null, String(error.message ?? error).slice(0, 300));
-  }
-}));
+const versionProbe = await createLua();
+console.log(`Luau ${versionProbe.version}\n`);
 
 // --- 1. syntax ---------------------------------------------------------------
+const compiler = await createLua();
 const luaFiles = collectLuaFiles(root);
 let syntaxFailures = 0;
 for (const file of luaFiles) {
   try {
-    lua.compile(readFileSync(file, 'utf8'));
+    compiler.compile(readFileSync(file, 'utf8'));
   } catch (error) {
     syntaxFailures += 1;
     record(false, `compiles: ${relative(root, file)}`, String(error.message ?? error).slice(0, 200));
@@ -87,7 +94,8 @@ if (markerStart === -1 || markerEnd === -1) {
   record(embeddedBlock === moduleBody + 'return Serializer\n',
     'standalone embeds Serializer.lua byte-for-byte');
 
-  const runSerializerChecks = (label, source) => {
+  const runSerializerChecks = async (label, source) => {
+    const lua = await createLua();
     const prints = [];
     const listener = (event) => prints.push(event.text);
     lua.addEventListener('print', listener);
@@ -112,15 +120,16 @@ ${serializerChecks}`);
       threw ?? failedChecks.join(' | '));
   };
 
-  runSerializerChecks('Serializer.lua module', serializerSource);
-  runSerializerChecks('copy embedded in HttpSpy.standalone.lua', embeddedBlock);
+  await runSerializerChecks('Serializer.lua module', serializerSource);
+  await runSerializerChecks('copy embedded in HttpSpy.standalone.lua', embeddedBlock);
 }
 
 // --- 4./5. scenarios inside the stub Roblox environment ----------------------
 const luauStringTable = (entries) =>
   `{\n${Object.entries(entries).map(([key, value]) => `  [${JSON.stringify(key)}] = ${JSON.stringify(value)},`).join('\n')}\n}`;
 
-const runScenario = (label, { virtualFiles, extraSetup = '', source, checks }) => {
+const runScenario = async (label, { virtualFiles, extraSetup = '', source, checks }) => {
+  const lua = await createLua();
   const prints = [];
   const listener = (event) => prints.push(event.text);
   lua.addEventListener('print', listener);
@@ -143,14 +152,14 @@ ${checks}`);
   record(!threw && failedChecks.length === 0, label, threw ?? failedChecks.join(' | '));
 };
 
-runScenario('HttpSpy.standalone.lua loads and logs through the embedded serializer', {
+await runScenario('HttpSpy.standalone.lua loads and logs through the embedded serializer', {
   virtualFiles: {},
   extraSetup: 'local __label = "standalone"\nlocal __expectLocalReads = false',
   source: standaloneSource,
   checks: apiChecks,
 });
 
-runScenario('mirror backup/HttpSpy.lua resolves the serializer from a local file', {
+await runScenario('mirror backup/HttpSpy.lua resolves the serializer from a local file', {
   virtualFiles: {
     'HttpSpy/upstream/VexalScripts/scripts/backup/Serializer.lua': serializerSource,
   },
@@ -159,7 +168,7 @@ runScenario('mirror backup/HttpSpy.lua resolves the serializer from a local file
   checks: apiChecks,
 });
 
-runScenario('mirror init/loader.lua loads GuiLoader.lua and the game script locally', {
+await runScenario('mirror init/loader.lua loads GuiLoader.lua and the game script locally', {
   virtualFiles: {
     'HttpSpy/upstream/VexalScripts/scripts/GuiLoader.lua': readFileSync(join(upstreamDir, 'GuiLoader.lua'), 'utf8'),
     'HttpSpy/upstream/VexalScripts/scripts/ChickenFarm.lua': '__genv.__localEndpointRan = (__genv.__localEndpointRan or 0) + 1\n',

@@ -82,6 +82,13 @@ resolved by (1) `require(script.Parent.Serializer)` when the two files are sibli
 ModuleScripts, then (2) reading a local file from the executor workspace, then (3) the
 upstream's own stub serializer with a warning. The upstream URL survives only as a comment.
 
+A second, non-localization patch sits in the request hook: response headers are read through
+a case-insensitive lookup before the `AutoDecode` check. Executors that answer over HTTP/2 or
+HTTP/3 hand back header names in lowercase (`["content-type"] = "application/json"`), so the
+original `Headers["Content-Type"]` lookup silently skipped JSON decoding (and threw when an
+executor returned no `Headers` table at all). The same fix is applied to the root
+`HttpSpy.lua`; `tests/api_checks.luau` covers it with the stub returning lowercase headers.
+
 ### `init/loader.lua` (now line 20)
 
 `script()` returns the relative endpoint (`GuiLoader.lua`, `ChickenFarm.lua`, ...) instead of
@@ -111,6 +118,7 @@ earlier work on this repository. It is what `HttpSpy.lua` and the standalone bui
 | `clonefunction or function(fn) return fn end` | works without the executor global |
 | `debug and debug.getinfo and ...`, `typeof or type` | works outside Roblox/executors |
 | `local formatString;` forward declaration | `serializeArgs` called it before its definition, raising "attempt to call a nil value" for string arguments |
+| case-insensitive `Content-Type` lookup in `request` | `AutoDecode` never ran on executors that lowercase header names (HTTP/2/3) |
 | `formatString(v)` + `config.highlighting` in `serializeArgs` | highlights only when configured and escapes strings |
 | backslash escaping in `formatString` | round-trips strings containing `\\` |
 | identifier check `^[_%a][_%a%d]*$` | avoids emitting invalid table keys |
@@ -168,6 +176,7 @@ Opt-in flags (all default to `false`):
 python3 tools/build_standalone.py --check   # standalone build is in sync with the modules
 python3 tools/check.py                      # structure, manifest, remote-load audit, URLs
 python3 tools/check.py --fetch-upstream     # same, plus re-download upstream and compare
+python3 tools/update_manifest.py            # refresh local hashes after editing the mirror
 cd tests && npm install && node run_checks.mjs   # Luau compile + runtime checks
 ```
 

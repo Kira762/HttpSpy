@@ -327,6 +327,22 @@ local success, result = pcall(function()
         HttpPost = not syn,
         HttpPostAsync = not syn
     }
+    -- Executors hand back response headers with different casing: HTTP/2 and HTTP/3
+    -- normalise header names to lowercase, HTTP/1.1 keeps them as sent. Look them up
+    -- case-insensitively so auto-decoding does not depend on the transport.
+    local function GetHeader(headers, name)
+        if Type(headers) ~= "table" then return nil end
+        local exact = headers[name]
+        if exact ~= nil then return exact end
+        local wanted = string.lower(name)
+        for key, value in Pairs(headers) do
+            if Type(key) == "string" and string.lower(key) == wanted then
+                return value
+            end
+        end
+        return nil
+    end
+
     local OnRequest = Instance.new("BindableEvent")
     local HttpSpyGui = Instance.new("ScreenGui")
     HttpSpyGui.Name = "HttpSpyGui"
@@ -763,11 +779,14 @@ local success, result = pcall(function()
             for i, v in Pairs(ResponseData) do
                 BackupData[i] = v;
             end;
-            if BackupData.Headers["Content-Type"] and match(BackupData.Headers["Content-Type"], "application/json") and options.AutoDecode then
-                local body = BackupData.Body;
-                local ok, res = Pcall(game.HttpService.JSONDecode, game.HttpService, body);
-                if ok then
-                    BackupData.Body = res;
+            if options.AutoDecode then
+                local contentType = GetHeader(BackupData.Headers, "Content-Type");
+                local isJson = Type(contentType) == "string" and match(contentType, "application/json") ~= nil;
+                if isJson and Type(BackupData.Body) == "string" then
+                    local ok, res = Pcall(game.HttpService.JSONDecode, game.HttpService, BackupData.Body);
+                    if ok then
+                        BackupData.Body = res;
+                    end;
                 end;
             end;
             LOG(libtype .. ".request(" .. Serializer.Serialize(RequestData) .. ")\n\n", false);

@@ -58,11 +58,11 @@
     },
     {
       "path": "backup/HttpSpy.lua",
-      "bytes": 27218,
-      "local_sha256": "65b03e8fc37d88ce05c167aa384b4c25971bf4a148d8280f04e8aa74fd54bfa1",
+      "bytes": 28077,
+      "local_sha256": "de98172180cce33dad4356dfbc17c159672def8f63468b263cf68a05e1314cde",
       "upstream_sha256": "1560e26272ed629445da6dff060df78998dc7e24522ea3dcbae3346e52ee63d7",
       "patched": true,
-      "patch_reason": "serializer downloaded at runtime -> sibling ModuleScript or local file, no remote execution"
+      "patch_reason": "serializer downloaded at runtime -> sibling ModuleScript or local file; response auto-decode now matches Content-Type case-insensitively (executors lower-case header names on HTTP/2/3)"
     },
     {
       "path": "backup/SanityChecks.lua",

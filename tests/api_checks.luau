@@ -115,6 +115,19 @@ if requestHook then
     end
     check(label .. ": captured request is logged through the serializer",
         found ~= nil and found:find(".request(", 1, true) ~= nil, found)
+
+    -- AutoDecode must match Content-Type case-insensitively: executors answer with
+    -- lowercase header names, so a "Content-Type" lookup alone silently skips decoding.
+    local responseLog = nil
+    for _, entry in ipairs(__genv.__fileWrites) do
+        if type(entry.data) == "string" and entry.data:find("Response Data", 1, true) then
+            responseLog = entry.data
+        end
+    end
+    check(label .. ": response is logged", responseLog ~= nil, nil)
+    check(label .. ": JSON response body is auto-decoded with lowercase headers",
+        responseLog ~= nil and responseLog:find("decoded = true", 1, true) ~= nil,
+        responseLog and responseLog:sub(1, 240))
 end
 
 if failures > 0 then

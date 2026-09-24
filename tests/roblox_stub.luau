@@ -80,7 +80,11 @@ Instance = {
 game = proxy("game")
 game.GetFullName = function() return "StubGame" end
 game.GetService = function(_, serviceName) return proxy("service:" .. tostring(serviceName)) end
-game.HttpService = { JSONDecode = function(_, body) return { decoded = body } end, JSONEncode = function(_, value) return "{}" end }
+game.HttpService = {
+    -- marks the decoded table so tests can tell decoding happened
+    JSONDecode = function(_, body) return { decoded = true, raw = body } end,
+    JSONEncode = function(_, value) return "{}" end,
+}
 game.HttpGet = function(_, url)
     __refused[#__refused + 1] = "HttpGet " .. tostring(url)
     error("offline test: HttpGet refused for " .. tostring(url), 0)
@@ -145,7 +149,8 @@ http = {
             StatusCode = 200,
             StatusMessage = "OK",
             Body = '{"ok":true}',
-            Headers = { ["Content-Type"] = "application/json" },
+            -- executors return lowercase header names (HTTP/2/3 normalisation)
+            Headers = { ["content-type"] = "application/json", ["cf-ray"] = "stub" },
             Url = type(requestTable) == "table" and requestTable.Url or nil,
         }
     end,

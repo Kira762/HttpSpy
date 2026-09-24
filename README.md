@@ -18,6 +18,7 @@ HttpSpy.standalone.lua          generated single file: serializer embedded, no d
 tools/
   build_standalone.py           builds / verifies HttpSpy.standalone.lua
   check.py                      offline structure, manifest and remote-load audit
+  update_manifest.py            refreshes the mirror's local hashes after a patch
   fetch_local_deps.py           downloads the optional third-party modules (see below)
 tests/
   run_checks.mjs                Luau compile + runtime checks (Luau WebAssembly runtime)
@@ -63,6 +64,10 @@ no `script.Parent` ModuleScript:
 local HttpSpy = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/Kira762/HttpSpy/refs/heads/arena/01a0d188-httpspy/HttpSpy.standalone.lua"))()
 ```
+
+JSON responses are decoded when `AutoDecode` is on - including on executors that return
+lowercase header names (`["content-type"] = "application/json"`, the HTTP/2 and HTTP/3
+normalisation), so `Body` shows up as a table in the log instead of a JSON string.
 
 That URL works while the branch exists; after merging to `main` change
 `refs/heads/arena/01a0d188-httpspy` to `refs/heads/main`. Any URL that serves the raw file
