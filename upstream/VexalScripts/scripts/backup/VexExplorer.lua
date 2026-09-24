@@ -429,8 +429,26 @@ not H then return nil end return H:FindFirstChild('HumanoidRootPart')or H:FindFi
 H:FindFirstChild('UpperTorso')or H:FindFirstChildWhichIsA('BasePart')end local F local G local H=
 false local function LoadSynSaveInstance()if F then return F end if H then return nil,G end H=true
 local I={RepoURL=[[https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/]],SSI=
-'saveinstance'}local J,K=pcall(function()return game:HttpGet(I.RepoURL..I.SSI..'.luau',true)end)if
-not J or type(K)~='string'or K==''then G=`HttpGet failed: {tostring(K)}`return nil,G end local L,M=
+'saveinstance'}
+-- [local-patch] Upstream downloaded I.RepoURL..I.SSI..'.luau' and loadstring'd it at runtime.
+-- The module is read from a local file now; the download only happens when you opt in with
+-- getgenv().VexExplorerAllowRemote = true (see docs/UPSTREAM.md).
+local __synSource=(function()
+if type(readfile)~='function'or type(isfile)~='function'then return nil end
+local __root=(getgenv and getgenv().HttpSpyLocalRoot)or'HttpSpy'
+local __candidates={__root..'/deps/saveinstance.luau',__root..'/upstream/VexalScripts/deps/saveinstance.luau','upstream/VexalScripts/deps/saveinstance.luau','deps/saveinstance.luau','saveinstance.luau'}
+for _,__path in ipairs(__candidates)do
+local __ok,__source=pcall(function()if isfile(__path)then return readfile(__path)end return nil end)
+if __ok and type(__source)=='string'and#__source>0 then return __source end end
+return nil end)()
+local J,K
+if __synSource then J,K=true,__synSource
+elseif getgenv and getgenv().VexExplorerAllowRemote==true then
+J,K=pcall(function()return game:HttpGet(I.RepoURL..I.SSI..'.luau',true)end)
+else
+G=`saveinstance.luau not found locally (see docs/UPSTREAM.md) and getgenv().VexExplorerAllowRemote is not true`
+return nil,G end
+if not J or type(K)~='string'or K==''then G=`HttpGet failed: {tostring(K)}`return nil,G end local L,M=
 loadstring(K,I.SSI)if not L then G=`loadstring failed: {tostring(M)}`return nil,G end local N,O=
 pcall(L)if not N or type(O)~='function'then G=`module returned non-function: {tostring(O)}`return
 nil,G end F=O return F end local I={{Class='Instance',Methods={{'ClearAllChildren','void',{}},{
@@ -3633,10 +3651,20 @@ false end end function s:SaveConfig()if not self.ConfigLoaded then return end Ha
 not(writefile and isfolder and makefolder)then return end if not isfolder(self.ConfigFolder)then
 makefolder(self.ConfigFolder)end local ao=d.HttpService:JSONEncode(self:BuildConfigData())
 writefile(self.ConfigPath,BeautifyJson(ao))end,'SaveConfig')end N=function()if s.ConfigLoaded then
-s:SaveConfig()end end function s:FetchVersion()local ao,ap=pcall(function()return loadstring(game:
-HttpGet([[https://raw.githubusercontent.com/Vezise/2026/main/Vez/VexExplorer/VexVersion.lua]]))()
-end)if not ao or typeof(ap)~='string'then return nil end local aq=ap:gsub('%s+','')return aq~=''and
-aq or nil end function s:InitConfig()Handle(function()local ao=self:FetchVersion()self.Version=ao
+s:SaveConfig()end end function s:FetchVersion()
+-- [local-patch] Upstream ran loadstring(game:HttpGet('https://raw.githubusercontent.com/Vezise/2026/main/Vez/VexExplorer/VexVersion.lua'))()
+-- only to read a version string. No remote code is executed here: a local VexVersion.lua is
+-- read when present, otherwise the pinned upstream value is used (see docs/UPSTREAM.md).
+local __versionFile=(function()
+if type(readfile)~='function'or type(isfile)~='function'then return nil end
+local __root=(getgenv and getgenv().HttpSpyLocalRoot)or'HttpSpy'
+local __candidates={__root..'/deps/VexExplorer/VexVersion.lua',__root..'/upstream/VexalScripts/deps/VexExplorer/VexVersion.lua','upstream/VexalScripts/deps/VexExplorer/VexVersion.lua','deps/VexExplorer/VexVersion.lua','VexVersion.lua'}
+for _,__path in ipairs(__candidates)do
+local __ok,__source=pcall(function()if isfile(__path)then return readfile(__path)end return nil end)
+if __ok and type(__source)=='string'and#__source>0 then return __source end end
+return nil end)()
+local ap=(__versionFile and __versionFile:match('"([^"]*)"'))or'V1.11E'
+if typeof(ap)~='string'then return nil end local aq=ap:gsub('%s+','')return aq~=''and aq or nil end function s:InitConfig()Handle(function()local ao=self:FetchVersion()self.Version=ao
 or'unknown'local ap={Version=self.Version}local aq if not(isfile and writefile and readfile and
 isfolder and makefolder)then self.ConfigLoaded=true return end if not isfolder(self.ConfigFolder)
 then makefolder(self.ConfigFolder)end if not isfile(self.ConfigPath)then writefile(self.ConfigPath,

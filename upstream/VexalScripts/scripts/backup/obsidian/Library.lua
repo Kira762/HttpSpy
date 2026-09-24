@@ -179,8 +179,24 @@ string)return typeof(D)=='string'and(D:match('^rbxasset://textures/')or D:match(
 string,E:boolean)return typeof(D)=='string'and(D:match('^content://')or D:match('^rbxasset://%x+/')
 or(E==true and D:match('^rbxassetid://')))end type Icon={Url:string,Id:number,IconName:string,
 ImageRectOffset:Vector2,ImageRectSize:Vector2}type IconModule={Icons:{string},GetAsset:(Name:string
-)->Icon?}local D,E=pcall(function()return(loadstring(game:HttpGet(
-[[https://gitlab.com/upio/lucide-roblox-direct/-/raw/main/source.lua]]))::()->IconModule)()end)
+)->Icon?}local D,E=pcall(function()
+-- [local-patch] Upstream loadstring'd https://gitlab.com/upio/lucide-roblox-direct/-/raw/main/source.lua
+-- at runtime. A local copy of source.lua is used now; the download only happens when you opt
+-- in with getgenv().ObsidianAllowRemoteCode = true (see docs/UPSTREAM.md).
+local __iconSource=(function()
+if type(readfile)~='function'or type(isfile)~='function'then return nil end
+local __root=(getgenv and getgenv().HttpSpyLocalRoot)or'HttpSpy'
+local __candidates={__root..'/deps/lucide-roblox/source.lua',__root..'/upstream/VexalScripts/deps/lucide-roblox/source.lua','upstream/VexalScripts/deps/lucide-roblox/source.lua','deps/lucide-roblox/source.lua','lucide-source.lua'}
+for _,__path in ipairs(__candidates)do
+local __ok,__source=pcall(function()if isfile(__path)then return readfile(__path)end return nil end)
+if __ok and type(__source)=='string'and#__source>0 then return __source end end
+return nil end)()
+if not __iconSource then
+if not(getgenv and getgenv().ObsidianAllowRemoteCode==true)then
+error('lucide icon source not found locally (see docs/UPSTREAM.md)',0)end
+__iconSource=game:HttpGet([[https://gitlab.com/upio/lucide-roblox-direct/-/raw/main/source.lua]])end
+return(loadstring(__iconSource)::()->IconModule)()
+end)
 function x:GetIcon(G:string)if not D then return end local H,I=pcall(E.GetAsset,G)if not H then
 return end return I end function x:GetCustomIcon(G:string):any if not G then return nil end if
 tonumber(G)then G=string.format('rbxassetid://%s',tostring(G))end if IsCustomAssetIcon(G,true)then

@@ -29,14 +29,69 @@ if options.SaveLogs then
     end)
 end
 
+-- [local-patch] Upstream downloaded the serializer from GitHub at runtime:
+--   https://raw.githubusercontent.com/VexalScripts/scripts/refs/heads/main/backup/Serializer.lua
+-- It is now resolved locally instead, so this script never executes remote code:
+--   1. sibling ModuleScript      - require(script.Parent.Serializer)
+--   2. local file in the executor workspace, mirroring this repository layout
+-- Set getgenv().HttpSpyLocalRoot when the files live somewhere other than "HttpSpy".
 local Serializer
-pcall(function()
-    Serializer = loadstring(game:HttpGet(
-        "https://raw.githubusercontent.com/VexalScripts/scripts/refs/heads/main/backup/Serializer.lua"))()
-    Serializer.UpdateConfig({ highlighting = options.Highlighting })
-end)
+local HttpSpySerializerFiles = {
+    "upstream/VexalScripts/scripts/backup/Serializer.lua",
+    "scripts/backup/Serializer.lua",
+    "backup/Serializer.lua",
+    "Serializer.lua",
+}
+local function HttpSpyReadLocalSource(files)
+    if type(readfile) ~= "function" or type(isfile) ~= "function" then
+        return nil, nil
+    end
+    local root = (getgenv and getgenv().HttpSpyLocalRoot) or "HttpSpy"
+    for _, file in ipairs(files) do
+        for _, candidate in ipairs({ root .. "/" .. file, file }) do
+            local ok, source = pcall(function()
+                if isfile(candidate) then
+                    return readfile(candidate)
+                end
+                return nil
+            end)
+            if ok and type(source) == "string" and #source > 0 then
+                return source, candidate
+            end
+        end
+    end
+    return nil, nil
+end
+do
+    local sibling = type(script) == "Instance" and script.Parent and script.Parent:FindFirstChild("Serializer")
+    if sibling then
+        local ok, module = pcall(require, sibling)
+        if ok and type(module) == "table" then
+            Serializer = module
+        end
+    end
+    if not Serializer then
+        local source, origin = HttpSpyReadLocalSource(HttpSpySerializerFiles)
+        if source and type(loadstring) == "function" then
+            local chunk, err = loadstring(source, "@" .. tostring(origin))
+            if chunk then
+                local ok, module = pcall(chunk)
+                if ok and type(module) == "table" then
+                    Serializer = module
+                else
+                    warn("ERROR: local serializer did not return a module: " .. tostring(module))
+                end
+            else
+                warn("ERROR: could not compile local serializer: " .. tostring(err))
+            end
+        end
+    end
+    if Serializer then
+        Serializer.UpdateConfig({ highlighting = options.Highlighting })
+    end
+end
 if not Serializer then
-    warn("ERROR: failed to load serializer")
+    warn("ERROR: failed to load serializer (no sibling ModuleScript or local file found)")
     Serializer = {
         Serialize = function(t) return tostring(t) end,
         FormatArguments = function(...) return table.concat({ ... }, ", ") end

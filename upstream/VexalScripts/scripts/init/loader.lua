@@ -17,24 +17,73 @@ local scripts = {
     }
 }
 
+-- [local-patch] Upstream fetched GuiLoader.lua and the per-game script from GitHub and
+-- ran them with loadstring. Sources are now resolved from local files first; the URLs
+-- below are kept for attribution and are only used when you explicitly opt in with
+-- getgenv().VexalScriptsAllowRemote = true. See docs/UPSTREAM.md.
 local loaderUrl = "https://raw.githubusercontent.com/VexalScripts/scripts/refs/heads/main/GuiLoader.lua"
 local baseUrl = "https://raw.githubusercontent.com/VexalScripts/scripts/refs/heads/main/"
+local localRoot = (getgenv().VexalScriptsLocalRoot or "HttpSpy") .. "/upstream/VexalScripts/scripts"
+local allowRemote = getgenv().VexalScriptsAllowRemote == true
 
 local function script()
     for scriptName, data in pairs(scripts) do
         if data.GameId == game.GameId then
-            return (baseUrl .. data.Endpoint)
+            return data.Endpoint
         end
     end
     return nil
 end
 
-local function run(url)
-    if not url then return end;
-    loadstring(game:HttpGet(url, true))()
+-- Reads a file that mirrors this repository layout from the executor workspace.
+local function readSource(relativePath)
+    if type(readfile) ~= "function" or type(isfile) ~= "function" then return nil, nil end
+    for _, candidate in ipairs({
+        localRoot .. "/" .. relativePath,
+        "upstream/VexalScripts/scripts/" .. relativePath,
+        "scripts/" .. relativePath,
+        relativePath,
+    }) do
+        local ok, source = pcall(function()
+            if isfile(candidate) then
+                return readfile(candidate)
+            end
+            return nil
+        end)
+        if ok and type(source) == "string" and #source > 0 then
+            return source, candidate
+        end
+    end
+    return nil, nil
+end
+
+local function run(relativePath, url)
+    if not relativePath then return end;
+    local source, origin = readSource(relativePath)
+    if not source and allowRemote then
+        local ok, remote = pcall(function()
+            return game:HttpGet(url, true)
+        end)
+        if ok and type(remote) == "string" and #remote > 0 then
+            source, origin = remote, url
+        end
+    end
+    if not source then
+        warn(string.format(
+            "[VexalScripts] no local copy of %q found (looked under %q). " ..
+            "Set getgenv().VexalScriptsLocalRoot, or getgenv().VexalScriptsAllowRemote = true " ..
+            "to download %q instead.", relativePath, localRoot, url))
+        return
+    end
+    local chunk, err = loadstring(source, "@" .. tostring(origin))
+    if not chunk then
+        warn(string.format("[VexalScripts] could not compile %q: %s", tostring(origin), tostring(err)))
+        return
+    end
+    chunk()
 end
 if not getgenv().dontRunLoader then
-    run(loaderUrl);
+    run("GuiLoader.lua", loaderUrl);
 end
 
 local function notify(title, text, duration)
@@ -53,14 +102,14 @@ local function notify(title, text, duration)
     end)
 end
 
-local scriptUrl = script()
-if scriptUrl then
+local endpoint = script()
+if endpoint then
     local success, placeInfo = pcall(function()
         return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
     end)
     local gameName = (success and placeInfo and placeInfo.Name) or "Game"
     notify(gameName, "Welcome to Vexal Scripts! Please wait, your script is loading..", 10)
-    run(scriptUrl)
+    run(endpoint, baseUrl .. endpoint)
 else
     notify("Unsupported Game!", "GameId: " .. tostring(game.GameId) .. " is not supported by Vexal Scripts!", 60)
 end
