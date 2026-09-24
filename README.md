@@ -77,7 +77,15 @@ The file ends with `return result`, so the returned table is the spy API:
 `API.OnRequest`, `API:HookSynRequest(url, hook)`, `API:ProxyHost(host, proxy)`,
 `API:RemoveProxy(host)`, `API:UnHookSynRequest(url)`, `API:BlockUrl(url)`,
 `API:WhitelistUrl(url)`, `API:ToggleGui(visible)`, `API:SetGuiPosition(position)`,
-`API:SetGuiSize(size)`.
+`API:SetGuiSize(size)`, `API:RenameLogFile(name)`, `API:GetLogFileName()`,
+`API:SaveLogs()`, `API:SetSaveMode(mode)`.
+
+`RenameLogFile(name)` moves the on-disk log file to a new name (sanitised so it
+always stays inside the executor workspace); `GetLogFileName()` returns the current
+path. Set `options.LogName` at startup to choose the initial file name. Logs are
+written automatically by default; set `options.SaveMode = "manual"` (or call
+`API:SetSaveMode("manual")`) to buffer them in memory and flush on demand with
+`API:SaveLogs()` (or the GUI "Save" button, shown only in manual mode).
 
 ### Rebuilding the standalone file
 
