@@ -43,6 +43,7 @@ const standaloneSource = readFileSync(join(root, 'HttpSpy.standalone.lua'), 'utf
 const stubSource = readFileSync(join(here, 'roblox_stub.luau'), 'utf8');
 const serializerChecks = readFileSync(join(here, 'serializer_checks.luau'), 'utf8');
 const apiChecks = readFileSync(join(here, 'api_checks.luau'), 'utf8');
+const manualSaveChecks = readFileSync(join(here, 'manual_save_checks.luau'), 'utf8');
 const loaderChecks = readFileSync(join(here, 'loader_checks.luau'), 'utf8');
 
 // Every step gets its own Lua state: the scripts install globals (and the stub builds large
@@ -157,6 +158,17 @@ await runScenario('HttpSpy.standalone.lua loads and logs through the embedded se
   extraSetup: 'local __label = "standalone"\nlocal __expectLocalReads = false',
   source: standaloneSource,
   checks: apiChecks,
+});
+
+// Manual-save mode: override the default options table with SaveMode = "manual".
+const manualSource = `local __manualOpts = { SaveMode = "manual", SaveLogs = true, API = true }\n` +
+  standaloneSource.replace('local options = ({ ... })[1] or {', 'local options = __manualOpts or {');
+
+await runScenario('standalone manual SaveMode buffers until SaveLogs is called', {
+  virtualFiles: {},
+  extraSetup: 'local __label = "standalone-manual"\nlocal __expectLocalReads = false',
+  source: manualSource,
+  checks: manualSaveChecks,
 });
 
 await runScenario('mirror backup/HttpSpy.lua resolves the serializer from a local file', {

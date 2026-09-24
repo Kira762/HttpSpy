@@ -16,18 +16,38 @@ local options = ({ ... })[1] or {
     CLICommands = true,
     ShowResponse = true,
     BlockedURLs = {},
+    LogName = nil,
+    SaveMode = "auto",
     API = true,
     GuiEnabled = true
 }
+
+-- Keep the log file name inside the executor workspace: strip path separators and
+-- filesystem-illegal characters so a rename can never write outside the folder.
+local function sanitizeLogName(name)
+    name = tostring(name)
+    name = name:gsub("/", "")
+    name = name:gsub("\\", "")
+    name = name:gsub("[:*?\"<>|]", "")
+    if #name == 0 then name = "HttpSpy_log" end
+    if not name:match("%.txt$") then name = name .. ".txt" end
+    return name
+end
+
 local version = "v2 upgraded by Vexal Scripts"
 local randomNumber = math.random(10000, 99999)
-local logname = string.format("HttpSpy_%s_%d.txt", os.date("%M%S"), randomNumber)
+local logname = options.LogName and sanitizeLogName(options.LogName)
+    or string.format("HttpSpy_%s_%d.txt", os.date("%M%S"), randomNumber)
 
 if options.SaveLogs then
     pcall(function()
         writefile(logname, "")
     end)
 end
+
+-- "auto" appends every log line to disk as it happens; "manual" buffers them in
+-- memory until API:SaveLogs() (or the GUI Save button) flushes them to disk.
+local saveMode = options.SaveMode == "manual" and "manual" or "auto"
 
 -- Put both ModuleScripts under the same parent in Roblox Studio.
 local Serializer = require(script.Parent.Serializer)
@@ -37,6 +57,9 @@ local success, result = pcall(function()
     local clonef = clonefunction or function(fn) return fn end
     local gsub = clonef(string.gsub)
     local match = clonef(string.match)
+    local function stripAnsi(s)
+        return (s:gsub("\27%[[%d;]+m", ""))
+    end
     local Type = clonef(type)
     local crunning = clonef(coroutine.running)
     local cwrap = clonef(coroutine.wrap)
@@ -234,6 +257,17 @@ local success, result = pcall(function()
     safeHover(ToggleButton, Color3.fromRGB(100, 100, 100),
         enabled and Color3.fromRGB(80, 80, 80) or Color3.fromRGB(120, 40, 40))
     safeHover(MinimizedIcon, Color3.fromRGB(50, 50, 50), Color3.fromRGB(35, 35, 35))
+
+    local LogNameLabel = Instance.new("TextLabel")
+    LogNameLabel.Size = UDim2.new(1, -10, 0, 16)
+    LogNameLabel.Position = UDim2.new(0, 5, 0, 30)
+    LogNameLabel.BackgroundTransparency = 1
+    LogNameLabel.Text = "Log: " .. logname
+    LogNameLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    LogNameLabel.Font = Enum.Font.Gotham
+    LogNameLabel.TextSize = 11
+    LogNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    LogNameLabel.Parent = MainFrame
     local __namecall, __request
     local requestCount = 0
     local isMinimized = false
@@ -279,8 +313,8 @@ local success, result = pcall(function()
         end)
     end)
     local LogsFrame = Instance.new("ScrollingFrame")
-    LogsFrame.Size = UDim2.new(1, -10, 1, -70)
-    LogsFrame.Position = UDim2.new(0, 5, 0, 35)
+    LogsFrame.Size = UDim2.new(1, -10, 1, -90)
+    LogsFrame.Position = UDim2.new(0, 5, 0, 48)
     LogsFrame.BackgroundTransparency = 1
     LogsFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
     LogsFrame.ScrollBarThickness = 6
@@ -324,9 +358,90 @@ local success, result = pcall(function()
             requestCount = 0
         end)
     end)
+
+    local RenameBox = Instance.new("TextBox")
+    RenameBox.Size = UDim2.new(0, 120, 0, 20)
+    RenameBox.Position = UDim2.new(0, 96, 0.5, -10)
+    RenameBox.PlaceholderText = "new log name"
+    RenameBox.Text = ""
+    RenameBox.Font = Enum.Font.Gotham
+    RenameBox.TextSize = 12
+    RenameBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    RenameBox.TextColor3 = Color3.fromRGB(220, 220, 220)
+    RenameBox.BorderSizePixel = 0
+    RenameBox.ClearTextOnFocus = true
+    RenameBox.Parent = ControlBar
+    local RenameCorner = Instance.new("UICorner")
+    RenameCorner.CornerRadius = UDim.new(0, 4)
+    RenameCorner.Parent = RenameBox
+    local RenameButton = Instance.new("TextButton")
+    RenameButton.Size = UDim2.new(0, 60, 0, 20)
+    RenameButton.Position = UDim2.new(0, 221, 0.5, -10)
+    RenameButton.Text = "Rename"
+    RenameButton.Font = Enum.Font.Gotham
+    RenameButton.TextSize = 12
+    RenameButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    RenameButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    RenameButton.BorderSizePixel = 0
+    RenameButton.AutoButtonColor = false
+    RenameButton.Parent = ControlBar
+    local RenameBtnCorner = Instance.new("UICorner")
+    RenameBtnCorner.CornerRadius = UDim.new(0, 4)
+    RenameBtnCorner.Parent = RenameButton
+    safeHover(RenameButton, Color3.fromRGB(80, 80, 80), Color3.fromRGB(60, 60, 60))
+    pcall(function()
+        RenameButton.MouseButton1Click:Connect(function()
+            local name = RenameBox.Text
+            if name and name ~= "" then
+                local ok = pcall(function()
+                    if API then
+                        API:RenameLogFile(name)
+                    end
+                end)
+                if ok then
+                    RenameBox.Text = ""
+                    RenameBox.PlaceholderText = "renamed"
+                else
+                    RenameBox.PlaceholderText = "rename failed"
+                end
+            end
+        end)
+    end)
+
+    local SaveButton = Instance.new("TextButton")
+    SaveButton.Size = UDim2.new(0, 48, 0, 20)
+    SaveButton.Position = UDim2.new(0, 286, 0.5, -10)
+    SaveButton.Text = "Save"
+    SaveButton.Font = Enum.Font.Gotham
+    SaveButton.TextSize = 12
+    SaveButton.BackgroundColor3 = Color3.fromRGB(60, 90, 60)
+    SaveButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    SaveButton.BorderSizePixel = 0
+    SaveButton.AutoButtonColor = false
+    SaveButton.Visible = (saveMode == "manual")
+    SaveButton.Parent = ControlBar
+    local SaveCorner = Instance.new("UICorner")
+    SaveCorner.CornerRadius = UDim.new(0, 4)
+    SaveCorner.Parent = SaveButton
+    safeHover(SaveButton, Color3.fromRGB(80, 110, 80), Color3.fromRGB(60, 90, 60))
+    pcall(function()
+        SaveButton.MouseButton1Click:Connect(function()
+            local flushed
+            local ok = pcall(function()
+                if API then flushed = API:SaveLogs() end
+            end)
+            if ok then
+                SaveButton.Text = "Saved!"
+                task.spawn(function()
+                    task.wait(1)
+                    SaveButton.Text = "Save"
+                end)
+            end
+        end)
+    end)
     local FilterBox = Instance.new("TextBox")
-    FilterBox.Size = UDim2.new(0.5, 0, 0.7, 0)
-    FilterBox.Position = UDim2.new(0.5, -100, 0.15, 0)
+    FilterBox.Size = UDim2.new(1, -448, 0.7, 0)
+    FilterBox.Position = UDim2.new(0, 338, 0.15, 0)
     FilterBox.PlaceholderText = "Filter requests..."
     FilterBox.Text = ""
     FilterBox.Font = Enum.Font.Gotham
@@ -353,11 +468,36 @@ local success, result = pcall(function()
         RequestCount.Text = "Requests: " .. requestCount
     end
 
+    local logBuffer = {}
+
+    -- Write any buffered log lines to disk. Only does work in manual-save mode.
+    local function flushLogs()
+        if not options.SaveLogs or #logBuffer == 0 then
+            return false
+        end
+        local ok = pcall(function()
+            local chunk = table.concat(logBuffer)
+            if appendfile then
+                appendfile(logname, chunk)
+            else
+                local existing = isfile and isfile(logname) and readfile(logname) or ""
+                writefile(logname, existing .. chunk)
+            end
+        end)
+        if ok then
+            logBuffer = {}
+            return true
+        end
+        return false
+    end
+
     local function LOG(text, isResponse)
         if options.SaveLogs then
             pcall(function()
-                local cleanText = gsub(text, "%\27%[%d+m", "")
-                if appendfile then
+                local cleanText = stripAnsi(text)
+                if saveMode == "manual" then
+                    logBuffer[#logBuffer + 1] = cleanText .. "\n"
+                elseif appendfile then
                     appendfile(logname, cleanText .. "\n")
                 else
                     local existing = isfile and isfile(logname) and readfile(logname) or ""
@@ -366,7 +506,7 @@ local success, result = pcall(function()
             end)
         end
         if not options.GuiEnabled then return end
-        local cleanText = text:gsub("\27%[[%d;]+m", "")
+        local cleanText = stripAnsi(text)
 
         task.spawn(function()
             pcall(function()
@@ -531,24 +671,28 @@ local success, result = pcall(function()
         replaceclosure(request, reqfunc);
     end;
     if syn and syn.websocket then
-        local WsConnect, WsBackup = debug.getupvalue(syn.websocket.connect, 1);
-        WsBackup = hookfunction(WsConnect, function(...)
-            LOG("syn.websocket.connect(" .. Serializer.FormatArguments(...) .. ")\n\n");
-            return WsBackup(...);
-        end);
+        pcall(function()
+            local WsConnect, WsBackup = debug.getupvalue(syn.websocket.connect, 1);
+            WsBackup = hookfunction(WsConnect, function(...)
+                LOG("syn.websocket.connect(" .. Serializer.FormatArguments(...) .. ")\n\n");
+                return WsBackup(...);
+            end);
+        end)
     end;
     if syn and syn.websocket then
-        local OldHttpGet
-        local OldHttpPost
+        pcall(function()
+            local OldHttpGet
+            local OldHttpPost
 
-        OldHttpGet = hookfunction(getupvalue(ConstantScan("ZeZLm2hpvGJrD6OP8A3aEszPNEw8OxGb"), 2), function(self, ...)
-            LOG("game.HttpGet(game, " .. Serializer.FormatArguments(...) .. ")\n\n")
-            return OldHttpGet(self, ...)
-        end)
+            OldHttpGet = hookfunction(getupvalue(ConstantScan("ZeZLm2hpvGJrD6OP8A3aEszPNEw8OxGb"), 2), function(self, ...)
+                LOG("game.HttpGet(game, " .. Serializer.FormatArguments(...) .. ")\n\n")
+                return OldHttpGet(self, ...)
+            end)
 
-        OldHttpPost = hookfunction(getupvalue(ConstantScan("gpGXBVpEoOOktZWoYECgAY31o0BlhOue"), 2), function(self, ...)
-            LOG("game.HttpPost(game, " .. Serializer.FormatArguments(...) .. ")\n\n")
-            return OldHttpPost(self, ...)
+            OldHttpPost = hookfunction(getupvalue(ConstantScan("gpGXBVpEoOOktZWoYECgAY31o0BlhOue"), 2), function(self, ...)
+                LOG("game.HttpPost(game, " .. Serializer.FormatArguments(...) .. ")\n\n")
+                return OldHttpPost(self, ...)
+            end)
         end)
     end
     for method, enabled in Pairs(methods) do
@@ -613,6 +757,54 @@ local success, result = pcall(function()
 
     function API:SetGuiSize(size)
         MainFrame.Size = size
+    end
+
+    function API:RenameLogFile(name)
+        if Type(name) ~= "string" then
+            error("invalid argument #1 to 'RenameLogFile' (string expected)", 0)
+        end
+        flushLogs()
+        local newName = sanitizeLogName(name)
+        if options.SaveLogs then
+            pcall(function()
+                if isfile and isfile(logname) and readfile then
+                    writefile(newName, readfile(logname) or "")
+                else
+                    writefile(newName, "")
+                end
+                if delfile and isfile and isfile(logname) then
+                    pcall(delfile, logname)
+                end
+            end)
+        end
+        logname = newName
+        if LogNameLabel then
+            LogNameLabel.Text = "Log: " .. logname
+        end
+        return logname
+    end
+
+    function API:GetLogFileName()
+        return logname
+    end
+
+    function API:SaveLogs()
+        return flushLogs()
+    end
+
+    function API:SetSaveMode(mode)
+        if mode ~= "auto" and mode ~= "manual" then
+            error("invalid argument #1 to 'SetSaveMode' (expected 'auto' or 'manual')", 0)
+        end
+        options.SaveMode = mode
+        saveMode = mode
+        if SaveButton then
+            SaveButton.Visible = (mode == "manual")
+        end
+        if mode == "auto" then
+            flushLogs()
+        end
+        return saveMode
     end
 
     return API

@@ -30,6 +30,7 @@ if expectApiTable then
     local expectedApi = {
         "HookSynRequest", "ProxyHost", "RemoveProxy", "UnHookSynRequest",
         "BlockUrl", "WhitelistUrl", "ToggleGui", "SetGuiPosition", "SetGuiSize",
+        "RenameLogFile", "GetLogFileName", "SaveLogs", "SetSaveMode",
     }
     for _, name in ipairs(expectedApi) do
         check(label .. ": API exposes " .. name, type(api[name]) == "function", tostring(api[name]))
@@ -81,6 +82,10 @@ for _, call in ipairs({
     function() api:ToggleGui(true) end,
     function() api:SetGuiPosition(UDim2.new(0, 0, 0, 0)) end,
     function() api:SetGuiSize(UDim2.new(0, 100, 0, 100)) end,
+    function() api:RenameLogFile("my_session") end,
+    function() local _ = api:GetLogFileName() end,
+    function() api:SaveLogs() end,
+    function() api:SetSaveMode("auto") end,
 }) do
     local ok, err = pcall(call)
     if not ok then
@@ -90,6 +95,19 @@ for _, call in ipairs({
     end
 end
 check(label .. ": public API methods run without error", apiCallsOk, apiCallError)
+
+-- RenameLogFile must write the new log file and GetLogFileName must report it.
+local renamedWrite = nil
+for _, entry in ipairs(__genv.__fileWrites) do
+    if type(entry.path) == "string" and entry.path:match("^my_session%.txt$") then
+        renamedWrite = entry
+        break
+    end
+end
+check(label .. ": RenameLogFile writes the new log file", renamedWrite ~= nil, #__genv.__fileWrites)
+check(label .. ": GetLogFileName reports the renamed file",
+    type(api.GetLogFileName) == "function" and api:GetLogFileName() == "my_session.txt",
+    tostring(api:GetLogFileName()))
 end
 
 -- The embedded serializer must format a real request log line. The stub records every
