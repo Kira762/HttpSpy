@@ -62,16 +62,16 @@ no `script.Parent` ModuleScript:
 
 ```lua
 local HttpSpy = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/Kira762/HttpSpy/refs/heads/arena/01a0d188-httpspy/HttpSpy.standalone.lua"))()
+    "https://raw.githubusercontent.com/Kira762/HttpSpy/refs/heads/main/HttpSpy.standalone.lua"))()
 ```
 
 JSON responses are decoded when `AutoDecode` is on - including on executors that return
 lowercase header names (`["content-type"] = "application/json"`, the HTTP/2 and HTTP/3
 normalisation), so `Body` shows up as a table in the log instead of a JSON string.
 
-That URL works while the branch exists; after merging to `main` change
-`refs/heads/arena/01a0d188-httpspy` to `refs/heads/main`. Any URL that serves the raw file
-works, including a local one (`readfile("HttpSpy.standalone.lua")`).
+That URL tracks `main`. If you are testing an unmerged branch, swap `main` for the branch
+name (`refs/heads/<branch>/HttpSpy.standalone.lua`). Any URL that serves the raw file works,
+including a local one (`readfile("HttpSpy.standalone.lua")`).
 
 The file ends with `return result`, so the returned table is the spy API:
 `API.OnRequest`, `API:HookSynRequest(url, hook)`, `API:ProxyHost(host, proxy)`,
