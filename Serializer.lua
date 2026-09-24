@@ -22,6 +22,7 @@ local rawget   = clonef(rawget);
 local rawset   = clonef(rawset);
 local Tab      = rep(" ", config.spaces or 4);
 local Serialize;
+local formatString; -- forward declaration: serializeArgs() below calls it before its definition
 
 -- Kill me
 local DataTypes = {
@@ -109,7 +110,7 @@ local function formatFunction(func)
   return "function () end"; -- we cannot create a prototype
 end;
 
-local function formatString(str) 
+function formatString(str) 
   local Pos = 1;
   local String = {};
   while Pos <= #str do
