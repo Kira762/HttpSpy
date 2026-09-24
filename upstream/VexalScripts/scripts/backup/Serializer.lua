@@ -1,7 +1,7 @@
 -- this script is not made by vexal scripts / deyvis
 
 local config   = { spaces = 4, highlighting = false };
-local clonef   = clonefunction or function(fn) return fn end;
+local clonef   = clonefunction;
 local str      = string;
 local gme      = game;
 local sub      = clonef(str.sub);
@@ -10,9 +10,9 @@ local rep      = clonef(str.rep);
 local byte     = clonef(str.byte);
 local match    = clonef(str.match);
 local getfn    = clonef(gme.GetFullName);
-local info     = debug and debug.getinfo and clonef(debug.getinfo);
-local huge     = math.huge;
-local Type     = clonef(typeof or type);
+local info     = clonef(debug.getinfo);
+local huge     = math.huge; -- just like your mother
+local Type     = clonef(typeof);
 local Pairs    = clonef(pairs);
 local Assert   = clonef(assert);
 local tostring = clonef(tostring);
@@ -22,7 +22,6 @@ local rawget   = clonef(rawget);
 local rawset   = clonef(rawset);
 local Tab      = rep(" ", config.spaces or 4);
 local Serialize;
-local formatString; -- forward declaration: serializeArgs() below calls it before its definition
 
 -- Kill me
 local DataTypes = {
@@ -80,7 +79,7 @@ local function serializeArgs(...)
     local valueType = Type(v);
     local SerializeIndex = #Serialized + 1;
     if valueType == "string" then
-      Serialized[SerializeIndex] = format(config.highlighting and "\27[32m\"%s\"\27[0m" or "\"%s\"", formatString(v));
+      Serialized[SerializeIndex] = format("\27[32m\"%s\"\27[0m", v);
     elseif valueType == "table" then
       Serialized[SerializeIndex] = Serialize(v, 0);
     else
@@ -110,7 +109,7 @@ local function formatFunction(func)
   return "function () end"; -- we cannot create a prototype
 end;
 
-function formatString(str) 
+local function formatString(str) 
   local Pos = 1;
   local String = {};
   while Pos <= #str do
@@ -119,8 +118,6 @@ function formatString(str)
       String[Pos] = "\\n";
     elseif Key == "\t" then
       String[Pos] = "\\t";
-    elseif Key == "\\" then
-      String[Pos] = "\\\\";
     elseif Key == "\"" then
       String[Pos] = "\\\"";
     else
@@ -151,7 +148,7 @@ local function formatIndex(idx, scope)
   local finishedFormat = idx;
 
   if indexType == "string" then
-    if not match(idx, "^[_%a][_%a%d]*$") then
+    if match(idx, "[^_%a%d]+") then
       finishedFormat = format(config.highlighting and "\27[32m\"%s\"\27[0m" or "\"%s\"", formatString(idx));
     else
       return idx;

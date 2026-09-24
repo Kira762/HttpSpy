@@ -1,0 +1,120 @@
+{
+  "source": {
+    "repository": "https://github.com/VexalScripts/scripts",
+    "commit": "09adeea85efdbb125c681bc7431a279a72125a79",
+    "fetched": "2026-09-24",
+    "mirror": "upstream/VexalScripts/scripts",
+    "note": "byte-for-byte copy; \"patched\" files differ only where noted, see docs/UPSTREAM.md"
+  },
+  "files": [
+    {
+      "path": "ChickenFarm.lua",
+      "bytes": 1163921,
+      "local_sha256": "3869caf8dc9875e7577fb442f2d59ccea1757e80bbd154f4f4af7e7609b28359",
+      "upstream_sha256": "3869caf8dc9875e7577fb442f2d59ccea1757e80bbd154f4f4af7e7609b28359",
+      "patched": false
+    },
+    {
+      "path": "DeagleArena.lua",
+      "bytes": 986445,
+      "local_sha256": "3176bbabd652c359d9883d06f1aa5b35f3aa8da9522d37972128b0adf2d46538",
+      "upstream_sha256": "3176bbabd652c359d9883d06f1aa5b35f3aa8da9522d37972128b0adf2d46538",
+      "patched": false
+    },
+    {
+      "path": "DuelsMurderVsSheriff.lua",
+      "bytes": 839636,
+      "local_sha256": "55ce4ba4860c3cbf9a989d97dbbfcb7cb5a5a5cad38c9e4f83adb8b402fce964",
+      "upstream_sha256": "55ce4ba4860c3cbf9a989d97dbbfcb7cb5a5a5cad38c9e4f83adb8b402fce964",
+      "patched": false
+    },
+    {
+      "path": "GuiLoader.lua",
+      "bytes": 5302,
+      "local_sha256": "536c173e6068ae06d9d090d00ff0716ec2d809afcee30aed11d9d0177c55f03d",
+      "upstream_sha256": "536c173e6068ae06d9d090d00ff0716ec2d809afcee30aed11d9d0177c55f03d",
+      "patched": false
+    },
+    {
+      "path": "KnifeDuels.lua",
+      "bytes": 531467,
+      "local_sha256": "f43c82369c6371c91fdec22e3d0f3cf72c4f2c02fa51f3ef396fd17721bfc526",
+      "upstream_sha256": "f43c82369c6371c91fdec22e3d0f3cf72c4f2c02fa51f3ef396fd17721bfc526",
+      "patched": false
+    },
+    {
+      "path": "MurderVsSheriffDuels.lua",
+      "bytes": 1545505,
+      "local_sha256": "db3216d80a3c00f22ed079d204ed2faa638322815cfafdc182da7de4eea297b5",
+      "upstream_sha256": "db3216d80a3c00f22ed079d204ed2faa638322815cfafdc182da7de4eea297b5",
+      "patched": false
+    },
+    {
+      "path": "backup/Developers.lua",
+      "bytes": 38,
+      "local_sha256": "30e3b4144fb66c5fc4ba406de37b889e21b1522c359779c48d0af3555f078c91",
+      "upstream_sha256": "30e3b4144fb66c5fc4ba406de37b889e21b1522c359779c48d0af3555f078c91",
+      "patched": false
+    },
+    {
+      "path": "backup/HttpSpy.lua",
+      "bytes": 28077,
+      "local_sha256": "de98172180cce33dad4356dfbc17c159672def8f63468b263cf68a05e1314cde",
+      "upstream_sha256": "1560e26272ed629445da6dff060df78998dc7e24522ea3dcbae3346e52ee63d7",
+      "patched": true,
+      "patch_reason": "serializer downloaded at runtime -> sibling ModuleScript or local file; response auto-decode now matches Content-Type case-insensitively (executors lower-case header names on HTTP/2/3)"
+    },
+    {
+      "path": "backup/SanityChecks.lua",
+      "bytes": 690105,
+      "local_sha256": "6367184967fc486c5a8ceff49c5d2d38e0caa10ede37482ecae7182b9f561760",
+      "upstream_sha256": "6367184967fc486c5a8ceff49c5d2d38e0caa10ede37482ecae7182b9f561760",
+      "patched": false
+    },
+    {
+      "path": "backup/Serializer.lua",
+      "bytes": 7641,
+      "local_sha256": "eed90ee3594fcf4cab0d1fa3e3730d8abb8bff0968991fcdb31aa1e303549890",
+      "upstream_sha256": "eed90ee3594fcf4cab0d1fa3e3730d8abb8bff0968991fcdb31aa1e303549890",
+      "patched": false
+    },
+    {
+      "path": "backup/VexExplorer.lua",
+      "bytes": 356417,
+      "local_sha256": "b4c55e9545ea51e8f6eb281d724eea932d82d888c29cf60c2621022860694bcf",
+      "upstream_sha256": "4101588243afff506a2d90931b00ee58147a238c1a6694bf93c9320ea93b5870",
+      "patched": true,
+      "patch_reason": "saveinstance.luau loadstring behind VexExplorerAllowRemote; VexVersion.lua loadstring replaced by a local file or pinned string"
+    },
+    {
+      "path": "backup/obsidian/Library.lua",
+      "bytes": 193447,
+      "local_sha256": "8c9693c7f269f13ba38b3b7e2011819290e4e1d39b1fb39b0b55ec9770663ee5",
+      "upstream_sha256": "c62c3e61a9832a05842698d2209d5f06efbb53ad6ebda21aafe77f533fb7e0f2",
+      "patched": true,
+      "patch_reason": "lucide source.lua loadstring -> local file first, download only behind ObsidianAllowRemoteCode"
+    },
+    {
+      "path": "backup/obsidian/SaveManager.lua",
+      "bytes": 15565,
+      "local_sha256": "95a9bc82503fec2a9778f36de147ba26e9a74eb783dda5ff63c504f80b379475",
+      "upstream_sha256": "95a9bc82503fec2a9778f36de147ba26e9a74eb783dda5ff63c504f80b379475",
+      "patched": false
+    },
+    {
+      "path": "backup/obsidian/ThemeManager.lua",
+      "bytes": 16501,
+      "local_sha256": "439d8c354e66d50d4b9ff5a188d72974985dc1565fb81f960a943d4f871f6691",
+      "upstream_sha256": "439d8c354e66d50d4b9ff5a188d72974985dc1565fb81f960a943d4f871f6691",
+      "patched": false
+    },
+    {
+      "path": "init/loader.lua",
+      "bytes": 4096,
+      "local_sha256": "6c32878141a61532d731b7e882efe96d71c1cfaba15fbc855b0ce70dcd509358",
+      "upstream_sha256": "8d2b6c58f80b8b3c48b10a3ebce6795a980fd6df6fea460d1a8ce6ffd191be94",
+      "patched": true,
+      "patch_reason": "GuiLoader.lua and the per-game script downloaded at runtime -> local files first, download only behind VexalScriptsAllowRemote"
+    }
+  ]
+}
