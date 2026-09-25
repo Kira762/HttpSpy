@@ -1,0 +1,796 @@
+local options = ({ ... })[1] or {
+    AutoDecode = true,
+    Highlighting = true,
+    SaveLogs = true,
+    CLICommands = true,
+    ShowResponse = true,
+    BlockedURLs = {},
+    LogName = nil,
+    SaveMode = "auto",
+    API = true,
+    GuiEnabled = true
+}
+
+local function sanitizeLogName(name)
+    name = tostring(name)
+    name = name:gsub("/", "")
+    name = name:gsub("\\", "")
+    name = name:gsub("[:*?\"<>|]", "")
+    if #name == 0 then name = "HttpSpy_log" end
+    if not name:match("%.txt$") then name = name .. ".txt" end
+    return name
+end
+
+local version = "v2 upgraded by Vexal Scripts"
+local randomNumber = math.random(10000, 99999)
+local logname = options.LogName and sanitizeLogName(options.LogName)
+    or string.format("HttpSpy_%s_%d.txt", os.date("%M%S"), randomNumber)
+
+if options.SaveLogs then
+    pcall(function()
+        writefile(logname, "")
+    end)
+end
+
+local saveMode = options.SaveMode == "manual" and "manual" or "auto"
+
+local Serializer = require(script.Parent.Serializer)
+Serializer.UpdateConfig({ highlighting = options.Highlighting })
+
+local success, result = pcall(function()
+    local clonef = clonefunction or function(fn) return fn end
+    local gsub = clonef(string.gsub)
+    local match = clonef(string.match)
+    local function stripAnsi(s)
+        return (s:gsub("\27%[[%d;]+m", ""))
+    end
+    local Type = clonef(type)
+    local crunning = clonef(coroutine.running)
+    local cwrap = clonef(coroutine.wrap)
+    local cresume = clonef(coroutine.resume)
+    local cyield = clonef(coroutine.yield)
+    local Pcall = clonef(pcall)
+    local Pairs = clonef(pairs)
+    local Error = clonef(error)
+    local getnamecallmethod = clonef(getnamecallmethod)
+    local blocked = options.BlockedURLs
+    local enabled = true
+    local reqfunc = (syn or http).request
+    local libtype = syn and "syn" or "http"
+    local hooked = {}
+    local proxied = {}
+    local methods = {
+        HttpGet = not syn,
+        HttpGetAsync = not syn,
+        GetObjects = true,
+        HttpPost = not syn,
+        HttpPostAsync = not syn
+    }
+    local function GetHeader(headers, name)
+        if Type(headers) ~= "table" then return nil end
+        local exact = headers[name]
+        if exact ~= nil then return exact end
+        local wanted = string.lower(name)
+        for key, value in Pairs(headers) do
+            if Type(key) == "string" and string.lower(key) == wanted then
+                return value
+            end
+        end
+        return nil
+    end
+
+    local OnRequest = Instance.new("BindableEvent")
+    local HttpSpyGui = Instance.new("ScreenGui")
+    HttpSpyGui.Name = "HttpSpyGui"
+    HttpSpyGui.DisplayOrder = 999
+    HttpSpyGui.ResetOnSpawn = false
+    HttpSpyGui.Parent = game:GetService("CoreGui")
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0.45, 0, 0.55, 0)
+    MainFrame.Position = UDim2.new(0.275, 0, 0.225, 0)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    MainFrame.BorderColor3 = Color3.fromRGB(60, 60, 60)
+    MainFrame.BorderSizePixel = 1
+    MainFrame.ClipsDescendants = true
+    MainFrame.Parent = HttpSpyGui
+    local dragInput, dragStart, startPos
+    MainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragStart = input.Position
+            startPos = MainFrame.Position
+            local connection
+            connection = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    connection:Disconnect()
+                    dragStart = nil
+                end
+            end)
+        end
+    end)
+    MainFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragStart then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y)
+        end
+    end)
+    local TitleBar = Instance.new("Frame")
+    TitleBar.Size = UDim2.new(1, 0, 0, 30)
+    TitleBar.Position = UDim2.new(0, 0, 0, 0)
+    TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    TitleBar.BorderSizePixel = 0
+    TitleBar.ZIndex = 2
+    TitleBar.Parent = MainFrame
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 6)
+    UICorner.Parent = TitleBar
+    local TitleText = Instance.new("TextLabel")
+    TitleText.Size = UDim2.new(1, -200, 1, 0)
+    TitleText.Position = UDim2.new(0, 10, 0, 0)
+    TitleText.BackgroundTransparency = 1
+    TitleText.Text = "HttpSpy " .. version
+    TitleText.TextColor3 = Color3.fromRGB(220, 220, 220)
+    TitleText.Font = Enum.Font.GothamBold
+    TitleText.TextSize = 14
+    TitleText.TextXAlignment = Enum.TextXAlignment.Left
+    TitleText.ZIndex = 3
+    TitleText.Parent = TitleBar
+    local ButtonContainer = Instance.new("Frame")
+    ButtonContainer.Size = UDim2.new(0, 180, 1, 0)
+    ButtonContainer.Position = UDim2.new(1, -185, 0, 0)
+    ButtonContainer.BackgroundTransparency = 1
+    ButtonContainer.Parent = TitleBar
+    local ToggleButton = Instance.new("TextButton")
+    ToggleButton.Size = UDim2.new(0, 60, 0, 22)
+    ToggleButton.Position = UDim2.new(0, 0, 0.5, -11)
+    ToggleButton.Text = "Disable"
+    ToggleButton.Font = Enum.Font.Gotham
+    ToggleButton.TextSize = 12
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    ToggleButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    ToggleButton.BorderSizePixel = 0
+    ToggleButton.AutoButtonColor = false
+    ToggleButton.ZIndex = 3
+    ToggleButton.Parent = ButtonContainer
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.CornerRadius = UDim.new(0, 4)
+    ToggleCorner.Parent = ToggleButton
+    local MinimizeButton = Instance.new("TextButton")
+    MinimizeButton.Size = UDim2.new(0, 22, 0, 22)
+    MinimizeButton.Position = UDim2.new(0, 65, 0.5, -11)
+    MinimizeButton.Text = "_"
+    MinimizeButton.Font = Enum.Font.GothamBold
+    MinimizeButton.TextSize = 16
+    MinimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    MinimizeButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    MinimizeButton.BorderSizePixel = 0
+    MinimizeButton.AutoButtonColor = false
+    MinimizeButton.ZIndex = 3
+    MinimizeButton.Parent = ButtonContainer
+    local MinimizeCorner = Instance.new("UICorner")
+    MinimizeCorner.CornerRadius = UDim.new(0, 4)
+    MinimizeCorner.Parent = MinimizeButton
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Size = UDim2.new(0, 22, 0, 22)
+    CloseButton.Position = UDim2.new(0, 92, 0.5, -11)
+    CloseButton.Text = "X"
+    CloseButton.Font = Enum.Font.GothamBold
+    CloseButton.TextSize = 14
+    CloseButton.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+    CloseButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    CloseButton.BorderSizePixel = 0
+    CloseButton.AutoButtonColor = false
+    CloseButton.ZIndex = 3
+    CloseButton.Parent = ButtonContainer
+    local CloseCorner = Instance.new("UICorner")
+    CloseCorner.CornerRadius = UDim.new(0, 4)
+    CloseCorner.Parent = CloseButton
+    local MinimizedIcon = Instance.new("TextButton")
+    MinimizedIcon.Size = UDim2.new(0, 40, 0, 40)
+    MinimizedIcon.Position = UDim2.new(0.5, -20, 0, 10)
+    MinimizedIcon.Text = "H"
+    MinimizedIcon.Font = Enum.Font.GothamBold
+    MinimizedIcon.TextSize = 20
+    MinimizedIcon.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    MinimizedIcon.TextColor3 = Color3.fromRGB(220, 220, 220)
+    MinimizedIcon.BorderSizePixel = 1
+    MinimizedIcon.BorderColor3 = Color3.fromRGB(60, 60, 60)
+    MinimizedIcon.AutoButtonColor = false
+    MinimizedIcon.Visible = false
+    MinimizedIcon.ZIndex = 999
+    MinimizedIcon.Parent = HttpSpyGui
+    local MinimizedCorner = Instance.new("UICorner")
+    MinimizedCorner.CornerRadius = UDim.new(0, 6)
+    MinimizedCorner.Parent = MinimizedIcon
+    local iconDragInput, iconDragStart, iconStartPos
+    MinimizedIcon.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            iconDragStart = input.Position
+            iconStartPos = MinimizedIcon.Position
+            local connection
+            connection = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    connection:Disconnect()
+                    iconDragStart = nil
+                end
+            end)
+        end
+    end)
+    MinimizedIcon.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and iconDragStart then
+            local delta = input.Position - iconDragStart
+            MinimizedIcon.Position = UDim2.new(iconStartPos.X.Scale, iconStartPos.X.Offset + delta.X,
+                iconStartPos.Y.Scale, iconStartPos.Y.Offset + delta.Y)
+        end
+    end)
+    local function safeHover(button, enterColor, leaveColor)
+        pcall(function()
+            button.MouseEnter:Connect(function()
+                button.BackgroundColor3 = enterColor
+            end)
+            button.MouseLeave:Connect(function()
+                button.BackgroundColor3 = leaveColor
+            end)
+        end)
+    end
+    safeHover(MinimizeButton, Color3.fromRGB(100, 100, 100), Color3.fromRGB(80, 80, 80))
+    safeHover(CloseButton, Color3.fromRGB(150, 50, 50), Color3.fromRGB(120, 40, 40))
+    safeHover(ToggleButton, Color3.fromRGB(100, 100, 100),
+        enabled and Color3.fromRGB(80, 80, 80) or Color3.fromRGB(120, 40, 40))
+    safeHover(MinimizedIcon, Color3.fromRGB(50, 50, 50), Color3.fromRGB(35, 35, 35))
+
+    local LogNameLabel = Instance.new("TextLabel")
+    LogNameLabel.Size = UDim2.new(1, -10, 0, 16)
+    LogNameLabel.Position = UDim2.new(0, 5, 0, 30)
+    LogNameLabel.BackgroundTransparency = 1
+    LogNameLabel.Text = "Log: " .. logname
+    LogNameLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    LogNameLabel.Font = Enum.Font.Gotham
+    LogNameLabel.TextSize = 11
+    LogNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    LogNameLabel.Parent = MainFrame
+    local __namecall, __request
+    local requestCount = 0
+    local isMinimized = false
+    pcall(function()
+        MinimizeButton.MouseButton1Click:Connect(function()
+            isMinimized = not isMinimized
+            MainFrame.Visible = not isMinimized
+            MinimizedIcon.Visible = isMinimized
+            if isMinimized then
+                local mainFramePos = MainFrame.Position
+                MinimizedIcon.Position = UDim2.new(mainFramePos.X.Scale,
+                    mainFramePos.X.Offset + MainFrame.AbsoluteSize.X / 2 - 20, 0, 10)
+            else
+                MainFrame.Position = MinimizedIcon.Position - UDim2.new(0, MainFrame.AbsoluteSize.X / 2 - 20, 0, 0)
+            end
+        end)
+    end)
+    pcall(function()
+        MinimizedIcon.MouseButton1Click:Connect(function()
+            isMinimized = false
+            MainFrame.Visible = true
+            MinimizedIcon.Visible = false
+            MainFrame.Position = MinimizedIcon.Position - UDim2.new(0, MainFrame.AbsoluteSize.X / 2 - 20, 0, 0)
+        end)
+    end)
+    pcall(function()
+        CloseButton.MouseButton1Click:Connect(function()
+            if __namecall then
+                hookmetamethod(game, "__namecall", __namecall)
+            end
+            if __request then
+                hookfunction(reqfunc, __request)
+            end
+            HttpSpyGui:Destroy()
+            getgenv().HttpSpy = nil
+        end)
+    end)
+    pcall(function()
+        ToggleButton.MouseButton1Click:Connect(function()
+            enabled = not enabled
+            ToggleButton.Text = enabled and "Disable" or "Enable"
+            ToggleButton.BackgroundColor3 = enabled and Color3.fromRGB(80, 80, 80) or Color3.fromRGB(120, 40, 40)
+        end)
+    end)
+    local LogsFrame = Instance.new("ScrollingFrame")
+    LogsFrame.Size = UDim2.new(1, -10, 1, -90)
+    LogsFrame.Position = UDim2.new(0, 5, 0, 48)
+    LogsFrame.BackgroundTransparency = 1
+    LogsFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+    LogsFrame.ScrollBarThickness = 6
+    LogsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    LogsFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    LogsFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+    LogsFrame.Parent = MainFrame
+    local LogsLayout = Instance.new("UIListLayout")
+    LogsLayout.Padding = UDim.new(0, 8)
+    LogsLayout.Parent = LogsFrame
+    local ControlBar = Instance.new("Frame")
+    ControlBar.Size = UDim2.new(1, 0, 0, 30)
+    ControlBar.Position = UDim2.new(0, 0, 1, -30)
+    ControlBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    ControlBar.BorderSizePixel = 0
+    ControlBar.Parent = MainFrame
+    local ClearButton = Instance.new("TextButton")
+    ClearButton.Size = UDim2.new(0, 80, 0, 22)
+    ClearButton.Position = UDim2.new(0, 10, 0.5, -11)
+    ClearButton.Text = "Clear Logs"
+    ClearButton.Font = Enum.Font.Gotham
+    ClearButton.TextSize = 12
+    ClearButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    ClearButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    ClearButton.BorderSizePixel = 0
+    ClearButton.AutoButtonColor = false
+    ClearButton.Parent = ControlBar
+    local ClearCorner = Instance.new("UICorner")
+    ClearCorner.CornerRadius = UDim.new(0, 4)
+    ClearCorner.Parent = ClearButton
+    safeHover(ClearButton, Color3.fromRGB(80, 80, 80), Color3.fromRGB(60, 60, 60))
+    pcall(function()
+        ClearButton.MouseButton1Click:Connect(function()
+            local children = LogsFrame:GetChildren()
+            for i = #children, 1, -1 do
+                local child = children[i]
+                if child:IsA("Frame") then
+                    child:Destroy()
+                end
+            end
+            requestCount = 0
+        end)
+    end)
+
+    local RenameBox = Instance.new("TextBox")
+    RenameBox.Size = UDim2.new(0, 120, 0, 20)
+    RenameBox.Position = UDim2.new(0, 96, 0.5, -10)
+    RenameBox.PlaceholderText = "new log name"
+    RenameBox.Text = ""
+    RenameBox.Font = Enum.Font.Gotham
+    RenameBox.TextSize = 12
+    RenameBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    RenameBox.TextColor3 = Color3.fromRGB(220, 220, 220)
+    RenameBox.BorderSizePixel = 0
+    RenameBox.ClearTextOnFocus = true
+    RenameBox.Parent = ControlBar
+    local RenameCorner = Instance.new("UICorner")
+    RenameCorner.CornerRadius = UDim.new(0, 4)
+    RenameCorner.Parent = RenameBox
+    local RenameButton = Instance.new("TextButton")
+    RenameButton.Size = UDim2.new(0, 60, 0, 20)
+    RenameButton.Position = UDim2.new(0, 221, 0.5, -10)
+    RenameButton.Text = "Rename"
+    RenameButton.Font = Enum.Font.Gotham
+    RenameButton.TextSize = 12
+    RenameButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    RenameButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    RenameButton.BorderSizePixel = 0
+    RenameButton.AutoButtonColor = false
+    RenameButton.Parent = ControlBar
+    local RenameBtnCorner = Instance.new("UICorner")
+    RenameBtnCorner.CornerRadius = UDim.new(0, 4)
+    RenameBtnCorner.Parent = RenameButton
+    safeHover(RenameButton, Color3.fromRGB(80, 80, 80), Color3.fromRGB(60, 60, 60))
+    pcall(function()
+        RenameButton.MouseButton1Click:Connect(function()
+            local name = RenameBox.Text
+            if name and name ~= "" then
+                local ok = pcall(function()
+                    if API then
+                        API:RenameLogFile(name)
+                    end
+                end)
+                if ok then
+                    RenameBox.Text = ""
+                    RenameBox.PlaceholderText = "renamed"
+                else
+                    RenameBox.PlaceholderText = "rename failed"
+                end
+            end
+        end)
+    end)
+
+    local SaveButton = Instance.new("TextButton")
+    SaveButton.Size = UDim2.new(0, 48, 0, 20)
+    SaveButton.Position = UDim2.new(0, 286, 0.5, -10)
+    SaveButton.Text = "Save"
+    SaveButton.Font = Enum.Font.Gotham
+    SaveButton.TextSize = 12
+    SaveButton.BackgroundColor3 = Color3.fromRGB(60, 90, 60)
+    SaveButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    SaveButton.BorderSizePixel = 0
+    SaveButton.AutoButtonColor = false
+    SaveButton.Visible = (saveMode == "manual")
+    SaveButton.Parent = ControlBar
+    local SaveCorner = Instance.new("UICorner")
+    SaveCorner.CornerRadius = UDim.new(0, 4)
+    SaveCorner.Parent = SaveButton
+    safeHover(SaveButton, Color3.fromRGB(80, 110, 80), Color3.fromRGB(60, 90, 60))
+    pcall(function()
+        SaveButton.MouseButton1Click:Connect(function()
+            local flushed
+            local ok = pcall(function()
+                if API then flushed = API:SaveLogs() end
+            end)
+            if ok then
+                SaveButton.Text = "Saved!"
+                task.spawn(function()
+                    task.wait(1)
+                    SaveButton.Text = "Save"
+                end)
+            end
+        end)
+    end)
+    local FilterBox = Instance.new("TextBox")
+    FilterBox.Size = UDim2.new(1, -448, 0.7, 0)
+    FilterBox.Position = UDim2.new(0, 338, 0.15, 0)
+    FilterBox.PlaceholderText = "Filter requests..."
+    FilterBox.Text = ""
+    FilterBox.Font = Enum.Font.Gotham
+    FilterBox.TextSize = 12
+    FilterBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    FilterBox.TextColor3 = Color3.fromRGB(220, 220, 220)
+    FilterBox.BorderSizePixel = 0
+    FilterBox.Parent = ControlBar
+    local UICornerFilter = Instance.new("UICorner")
+    UICornerFilter.CornerRadius = UDim.new(0, 4)
+    UICornerFilter.Parent = FilterBox
+    local RequestCount = Instance.new("TextLabel")
+    RequestCount.Size = UDim2.new(0, 100, 1, 0)
+    RequestCount.Position = UDim2.new(1, -110, 0, 0)
+    RequestCount.Text = "Requests: 0"
+    RequestCount.Font = Enum.Font.Gotham
+    RequestCount.TextSize = 12
+    RequestCount.BackgroundTransparency = 1
+    RequestCount.TextColor3 = Color3.fromRGB(180, 180, 180)
+    RequestCount.TextXAlignment = Enum.TextXAlignment.Right
+    RequestCount.Parent = ControlBar
+    local function updateRequestCount()
+        requestCount = requestCount + 1
+        RequestCount.Text = "Requests: " .. requestCount
+    end
+
+    local logBuffer = {}
+
+    local function flushLogs()
+        if not options.SaveLogs or #logBuffer == 0 then
+            return false
+        end
+        local ok = pcall(function()
+            local chunk = table.concat(logBuffer)
+            if appendfile then
+                appendfile(logname, chunk)
+            else
+                local existing = isfile and isfile(logname) and readfile(logname) or ""
+                writefile(logname, existing .. chunk)
+            end
+        end)
+        if ok then
+            logBuffer = {}
+            return true
+        end
+        return false
+    end
+
+    local function LOG(text, isResponse)
+        if options.SaveLogs then
+            pcall(function()
+                local cleanText = stripAnsi(text)
+                if saveMode == "manual" then
+                    logBuffer[#logBuffer + 1] = cleanText .. "\n"
+                elseif appendfile then
+                    appendfile(logname, cleanText .. "\n")
+                else
+                    local existing = isfile and isfile(logname) and readfile(logname) or ""
+                    writefile(logname, existing .. cleanText .. "\n")
+                end
+            end)
+        end
+        if not options.GuiEnabled then return end
+        local cleanText = stripAnsi(text)
+
+        task.spawn(function()
+            pcall(function()
+                local logEntry = Instance.new("Frame")
+                logEntry.Size = UDim2.new(1, -10, 0, 0)
+                logEntry.Position = UDim2.new(0, 5, 0, 0)
+                logEntry.BackgroundTransparency = 1
+                logEntry.AutomaticSize = Enum.AutomaticSize.Y
+                logEntry.Parent = LogsFrame
+                local bg = Instance.new("Frame")
+                bg.Size = UDim2.new(1, 0, 1, 0)
+                bg.BackgroundColor3 = isResponse and Color3.fromRGB(70, 100, 70) or Color3.fromRGB(100, 70, 70)
+                bg.BackgroundTransparency = 0.9
+                bg.BorderSizePixel = 0
+                bg.Parent = logEntry
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0, 6)
+                corner.Parent = bg
+                local copyButton = Instance.new("TextButton")
+                copyButton.Size = UDim2.new(0, 50, 0, 18)
+                copyButton.Position = UDim2.new(1, -55, 0, 5)
+                copyButton.Text = "Copy"
+                copyButton.Font = Enum.Font.Gotham
+                copyButton.TextSize = 11
+                copyButton.BackgroundColor3 = Color3.fromRGB(70, 70, 100)
+                copyButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+                copyButton.BorderSizePixel = 0
+                copyButton.AutoButtonColor = false
+                copyButton.Parent = logEntry
+                local copyCorner = Instance.new("UICorner")
+                copyCorner.CornerRadius = UDim.new(0, 4)
+                copyCorner.Parent = copyButton
+                safeHover(copyButton, Color3.fromRGB(90, 90, 120), Color3.fromRGB(70, 70, 100))
+                pcall(function()
+                    copyButton.MouseButton1Click:Connect(function()
+                        setclipboard(cleanText)
+                        copyButton.Text = "Copied!"
+                        task.wait(1)
+                        copyButton.Text = "Copy"
+                    end)
+                end)
+                local label = Instance.new("TextLabel")
+                label.Size = UDim2.new(1, -60, 0, 0)
+                label.Position = UDim2.new(0, 10, 0, 5)
+                label.Text = cleanText
+                label.TextColor3 = Color3.fromRGB(240, 240, 240)
+                label.BackgroundTransparency = 1
+                label.TextXAlignment = Enum.TextXAlignment.Left
+                label.TextYAlignment = Enum.TextYAlignment.Top
+                label.TextWrapped = true
+                label.Font = Enum.Font.Code
+                label.TextSize = 13
+                label.AutomaticSize = Enum.AutomaticSize.Y
+                label.Parent = logEntry
+                local timeText = Instance.new("TextLabel")
+                timeText.Size = UDim2.new(1, -60, 0, 15)
+                timeText.Position = UDim2.new(0, 10, 1, -20)
+                timeText.Text = os.date("%H:%M:%S")
+                timeText.TextColor3 = Color3.fromRGB(180, 180, 180)
+                timeText.BackgroundTransparency = 1
+                timeText.TextXAlignment = Enum.TextXAlignment.Left
+                timeText.Font = Enum.Font.Gotham
+                timeText.TextSize = 10
+                timeText.Parent = logEntry
+                if FilterBox.Text == "" then
+                    task.wait()
+                    LogsFrame.CanvasPosition = Vector2.new(0, LogsLayout.AbsoluteContentSize.Y)
+                end
+                updateRequestCount()
+            end)
+        end)
+    end
+    pcall(function()
+        FilterBox:GetPropertyChangedSignal("Text"):Connect(function()
+            local filterText = string.lower(FilterBox.Text)
+            for _, logEntry in ipairs(LogsFrame:GetChildren()) do
+                if logEntry:IsA("Frame") then
+                    local label = logEntry:FindFirstChildOfClass("TextLabel")
+                    if label and label.Text then
+                        logEntry.Visible = filterText == "" or
+                            string.find(string.lower(label.Text), filterText, 1, true) ~= nil
+                    end
+                end
+            end
+        end)
+    end)
+    local function ConstantScan(constant)
+        for i, v in Pairs(getgc(true)) do
+            if type(v) == "function" and islclosure(v) and getfenv(v).script == getfenv(saveinstance).script and table.find(debug.getconstants(v), constant) then
+                return v;
+            end;
+        end;
+    end;
+    local function DeepClone(tbl, cloned)
+        cloned = cloned or {};
+        for i, v in Pairs(tbl) do
+            if Type(v) == "table" then
+                cloned[i] = DeepClone(v);
+                continue;
+            end;
+            cloned[i] = v;
+        end;
+
+        return cloned;
+    end;
+    __namecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod();
+        if methods[method] then
+            LOG("game:" .. method .. "(" .. Serializer.FormatArguments(...) .. ")\n\n");
+        end;
+        return __namecall(self, ...);
+    end));
+    __request = hookfunction(reqfunc, newcclosure(function(req)
+        if Type(req) ~= "table" then return __request(req); end;
+        local RequestData = DeepClone(req);
+        if not enabled then
+            return __request(req);
+        end;
+        if Type(RequestData.Url) ~= "string" then return __request(req) end;
+        if not options.ShowResponse then
+            LOG(libtype .. ".request(" .. Serializer.Serialize(RequestData) .. ")\n\n");
+            return __request(req);
+        end;
+        local t = crunning();
+        cwrap(function()
+            if RequestData.Url and blocked[RequestData.Url] then
+                LOG(libtype .. ".request(" .. Serializer.Serialize(RequestData) .. ") -- blocked url\n\n");
+                return cresume(t, {});
+            end;
+            if RequestData.Url then
+                local Host = string.match(RequestData.Url, "https?://(%w+.%w+)/");
+                if Host and proxied[Host] then
+                    RequestData.Url = gsub(RequestData.Url, Host, proxied[Host], 1);
+                end;
+            end;
+            OnRequest:Fire(RequestData);
+            local ok, ResponseData = Pcall(__request, RequestData);
+            if not ok then
+                Error(ResponseData, 0);
+            end;
+            local BackupData = {};
+            for i, v in Pairs(ResponseData) do
+                BackupData[i] = v;
+            end;
+            if options.AutoDecode then
+                local contentType = GetHeader(BackupData.Headers, "Content-Type");
+                local isJson = Type(contentType) == "string" and match(contentType, "application/json") ~= nil;
+                if isJson and Type(BackupData.Body) == "string" then
+                    local ok, res = Pcall(game.HttpService.JSONDecode, game.HttpService, BackupData.Body);
+                    if ok then
+                        BackupData.Body = res;
+                    end;
+                end;
+            end;
+            LOG(libtype .. ".request(" .. Serializer.Serialize(RequestData) .. ")\n\n", false);
+            LOG("Response Data: " .. Serializer.Serialize(BackupData) .. "\n\n", true);
+            cresume(t, hooked[RequestData.Url] and hooked[RequestData.Url](ResponseData) or ResponseData);
+        end)();
+        return cyield();
+    end));
+    if request then
+        replaceclosure(request, reqfunc);
+    end;
+    if syn and syn.websocket then
+        pcall(function()
+            local WsConnect, WsBackup = debug.getupvalue(syn.websocket.connect, 1);
+            WsBackup = hookfunction(WsConnect, function(...)
+                LOG("syn.websocket.connect(" .. Serializer.FormatArguments(...) .. ")\n\n");
+                return WsBackup(...);
+            end);
+        end)
+    end;
+    if syn and syn.websocket then
+        pcall(function()
+            local OldHttpGet
+            local OldHttpPost
+
+            OldHttpGet = hookfunction(getupvalue(ConstantScan("ZeZLm2hpvGJrD6OP8A3aEszPNEw8OxGb"), 2), function(self, ...)
+                LOG("game.HttpGet(game, " .. Serializer.FormatArguments(...) .. ")\n\n")
+                return OldHttpGet(self, ...)
+            end)
+
+            OldHttpPost = hookfunction(getupvalue(ConstantScan("gpGXBVpEoOOktZWoYECgAY31o0BlhOue"), 2), function(self, ...)
+                LOG("game.HttpPost(game, " .. Serializer.FormatArguments(...) .. ")\n\n")
+                return OldHttpPost(self, ...)
+            end)
+        end)
+    end
+    for method, enabled in Pairs(methods) do
+        if enabled then
+            pcall(function()
+                local b;
+                b = hookfunction(game[method], newcclosure(function(self, ...)
+                    LOG("game." .. method .. "(game, " .. Serializer.FormatArguments(...) .. ")\n\n");
+                    return b(self, ...);
+                end));
+            end)
+        end;
+    end;
+    task.spawn(function()
+        LOG("HttpSpy " .. version .. "\n" ..
+            "Logs are automatically being saved to: " ..
+            (options.SaveLogs and logname or "(Log saving is disabled. Enable SaveLogs to save logs)") ..
+            "\n\n")
+    end)
+
+    if not options.API then return {} end
+    local API = {}
+    API.OnRequest = OnRequest.Event
+    function API:HookSynRequest(url, hook)
+        hooked[url] = hook
+    end
+
+    function API:ProxyHost(host, proxy)
+        proxied[host] = proxy
+    end
+
+    function API:RemoveProxy(host)
+        if not proxied[host] then
+            error("host isn't proxied", 0)
+        end
+        proxied[host] = nil
+    end
+
+    function API:UnHookSynRequest(url)
+        if not hooked[url] then
+            error("url isn't hooked", 0)
+        end
+        hooked[url] = nil
+    end
+
+    function API:BlockUrl(url)
+        blocked[url] = true
+    end
+
+    function API:WhitelistUrl(url)
+        blocked[url] = false
+    end
+
+    function API:ToggleGui(visible)
+        HttpSpyGui.Enabled = visible
+        options.GuiEnabled = visible
+    end
+
+    function API:SetGuiPosition(position)
+        MainFrame.Position = position
+    end
+
+    function API:SetGuiSize(size)
+        MainFrame.Size = size
+    end
+
+    function API:RenameLogFile(name)
+        if Type(name) ~= "string" then
+            error("invalid argument #1 to 'RenameLogFile' (string expected)", 0)
+        end
+        flushLogs()
+        local newName = sanitizeLogName(name)
+        if options.SaveLogs then
+            pcall(function()
+                if isfile and isfile(logname) and readfile then
+                    writefile(newName, readfile(logname) or "")
+                else
+                    writefile(newName, "")
+                end
+                if delfile and isfile and isfile(logname) then
+                    pcall(delfile, logname)
+                end
+            end)
+        end
+        logname = newName
+        if LogNameLabel then
+            LogNameLabel.Text = "Log: " .. logname
+        end
+        return logname
+    end
+
+    function API:GetLogFileName()
+        return logname
+    end
+
+    function API:SaveLogs()
+        return flushLogs()
+    end
+
+    function API:SetSaveMode(mode)
+        if mode ~= "auto" and mode ~= "manual" then
+            error("invalid argument #1 to 'SetSaveMode' (expected 'auto' or 'manual')", 0)
+        end
+        options.SaveMode = mode
+        saveMode = mode
+        if SaveButton then
+            SaveButton.Visible = (mode == "manual")
+        end
+        if mode == "auto" then
+            flushLogs()
+        end
+        return saveMode
+    end
+
+    return API
+end)
+
+if not success then
+    error("Failed to load HttpSpy, reason: " .. tostring(result), 0)
+end
+return result
