@@ -17,10 +17,6 @@ local scripts = {
     }
 }
 
--- [local-patch] Upstream fetched GuiLoader.lua and the per-game script from GitHub and
--- ran them with loadstring. Sources are now resolved from local files first; the URLs
--- below are kept for attribution and are only used when you explicitly opt in with
--- getgenv().VexalScriptsAllowRemote = true. See docs/UPSTREAM.md.
 local loaderUrl = "https://raw.githubusercontent.com/VexalScripts/scripts/refs/heads/main/GuiLoader.lua"
 local baseUrl = "https://raw.githubusercontent.com/VexalScripts/scripts/refs/heads/main/"
 local localRoot = (getgenv().VexalScriptsLocalRoot or "HttpSpy") .. "/upstream/VexalScripts/scripts"
@@ -35,7 +31,6 @@ local function script()
     return nil
 end
 
--- Reads a file that mirrors this repository layout from the executor workspace.
 local function readSource(relativePath)
     if type(readfile) ~= "function" or type(isfile) ~= "function" then return nil, nil end
     for _, candidate in ipairs({

@@ -1,17 +1,5 @@
--- Assertions for a HttpSpy build (HttpSpy.standalone.lua or the vendored copy) after it
--- has been executed inside tests/roblox_stub.luau by tests/run_checks.mjs.
---
--- In scope:
---   __ok                  - true when the file loaded without error
---   __result              - the API table the file returned (or the error message)
---   __label               - name used in the CHECK lines
---   __expectLocalReads    - true when the serializer must come from a local file
---   __genv.__fileWrites / __genv.__captured / __genv.__refused / __genv.__reads
-
 local label = __label or "spy"
 local expectLocalReads = __expectLocalReads == true
--- The standalone build returns its API table; the vendored upstream copy does not (it only
--- exposes it through getgenv while hooked), so API surface checks are opt-out.
 local expectApiTable = __expectApiTable ~= false
 local failures = 0
 
@@ -40,7 +28,6 @@ else
     check(label .. ": loads without error", __ok == true, __result)
 end
 
--- The spy must not download anything while loading: the stub refuses those calls.
 check(label .. ": nothing was downloaded during load", #__genv.__refused == 0,
     table.concat(__genv.__refused, ", "))
 
@@ -59,7 +46,6 @@ else
         table.concat(__genv.__reads, ", "))
 end
 
--- A log file must be initialised (SaveLogs defaults to true) with the upstream name pattern.
 local logWrites = {}
 for _, entry in ipairs(__genv.__fileWrites) do
     if type(entry.path) == "string" and entry.path:match("^HttpSpy_%d+_%d+%.txt$") then
@@ -68,7 +54,6 @@ for _, entry in ipairs(__genv.__fileWrites) do
 end
 check(label .. ": log file is initialised as HttpSpy_<mmss>_<random>.txt", #logWrites > 0, #__genv.__fileWrites)
 
--- Exercise the API surface the same way a user script would.
 if expectApiTable then
 local apiCallsOk = true
 local apiCallError = nil
@@ -96,7 +81,6 @@ for _, call in ipairs({
 end
 check(label .. ": public API methods run without error", apiCallsOk, apiCallError)
 
--- RenameLogFile must write the new log file and GetLogFileName must report it.
 local renamedWrite = nil
 for _, entry in ipairs(__genv.__fileWrites) do
     if type(entry.path) == "string" and entry.path:match("^my_session%.txt$") then
@@ -110,9 +94,6 @@ check(label .. ": GetLogFileName reports the renamed file",
     tostring(api:GetLogFileName()))
 end
 
--- The embedded serializer must format a real request log line. The stub records every
--- hookfunction() call, so the request wrapper HttpSpy installed on http.request can be
--- invoked directly.
 local requestHook = nil
 for _, hook in ipairs(__genv.__hooks) do
     if hook.original == http.request and type(hook.replacement) == "function" then
@@ -134,8 +115,6 @@ if requestHook then
     check(label .. ": captured request is logged through the serializer",
         found ~= nil and found:find(".request(", 1, true) ~= nil, found)
 
-    -- AutoDecode must match Content-Type case-insensitively: executors answer with
-    -- lowercase header names, so a "Content-Type" lookup alone silently skips decoding.
     local responseLog = nil
     for _, entry in ipairs(__genv.__fileWrites) do
         if type(entry.data) == "string" and entry.data:find("Response Data", 1, true) then

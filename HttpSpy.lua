@@ -1,14 +1,3 @@
---[[
-script originally made by bebomods (NotDSF)
-script heavily upgraded by (Vexal Scripts)
-   + added support for potassium executor
-   + upgraded UI (scrolling stuff and theme)
-   + upgraded file logging system (can log multiple of files within one roblox instance)
-   - cleaned up alot of junk and bugs
-   + fixed logs not saving to a file
-   + fixed not saving previous logs by HttpSpy
-]]
-
 local options = ({ ... })[1] or {
     AutoDecode = true,
     Highlighting = true,
@@ -22,8 +11,6 @@ local options = ({ ... })[1] or {
     GuiEnabled = true
 }
 
--- Keep the log file name inside the executor workspace: strip path separators and
--- filesystem-illegal characters so a rename can never write outside the folder.
 local function sanitizeLogName(name)
     name = tostring(name)
     name = name:gsub("/", "")
@@ -45,11 +32,8 @@ if options.SaveLogs then
     end)
 end
 
--- "auto" appends every log line to disk as it happens; "manual" buffers them in
--- memory until API:SaveLogs() (or the GUI Save button) flushes them to disk.
 local saveMode = options.SaveMode == "manual" and "manual" or "auto"
 
--- Put both ModuleScripts under the same parent in Roblox Studio.
 local Serializer = require(script.Parent.Serializer)
 Serializer.UpdateConfig({ highlighting = options.Highlighting })
 
@@ -82,9 +66,6 @@ local success, result = pcall(function()
         HttpPost = not syn,
         HttpPostAsync = not syn
     }
-    -- Executors hand back response headers with different casing: HTTP/2 and HTTP/3
-    -- normalise header names to lowercase, HTTP/1.1 keeps them as sent. Look them up
-    -- case-insensitively so auto-decoding does not depend on the transport.
     local function GetHeader(headers, name)
         if Type(headers) ~= "table" then return nil end
         local exact = headers[name]
@@ -470,7 +451,6 @@ local success, result = pcall(function()
 
     local logBuffer = {}
 
-    -- Write any buffered log lines to disk. Only does work in manual-save mode.
     local function flushLogs()
         if not options.SaveLogs or #logBuffer == 0 then
             return false

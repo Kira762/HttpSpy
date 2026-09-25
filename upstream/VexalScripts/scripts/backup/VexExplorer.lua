@@ -1,4 +1,3 @@
--- performance boost
 getgenv().VexExecutedCheck=false local a={'EncodingService','ExperienceStateRecordingService',
 'LodDataService','TelemetryService','BrowserService','CommerceService','HSRDataContentProvider',
 'StylingService','ControllerService','AvatarEditorService','GenericChallengeService',
@@ -430,9 +429,6 @@ H:FindFirstChild('UpperTorso')or H:FindFirstChildWhichIsA('BasePart')end local F
 false local function LoadSynSaveInstance()if F then return F end if H then return nil,G end H=true
 local I={RepoURL=[[https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/]],SSI=
 'saveinstance'}
--- [local-patch] Upstream downloaded I.RepoURL..I.SSI..'.luau' and loadstring'd it at runtime.
--- The module is read from a local file now; the download only happens when you opt in with
--- getgenv().VexExplorerAllowRemote = true (see docs/UPSTREAM.md).
 local __synSource=(function()
 if type(readfile)~='function'or type(isfile)~='function'then return nil end
 local __root=(getgenv and getgenv().HttpSpyLocalRoot)or'HttpSpy'
@@ -446,7 +442,7 @@ if __synSource then J,K=true,__synSource
 elseif getgenv and getgenv().VexExplorerAllowRemote==true then
 J,K=pcall(function()return game:HttpGet(I.RepoURL..I.SSI..'.luau',true)end)
 else
-G=`saveinstance.luau not found locally (see docs/UPSTREAM.md) and getgenv().VexExplorerAllowRemote is not true`
+G=`saveinstance.luau not found locally and getgenv().VexExplorerAllowRemote is not true`
 return nil,G end
 if not J or type(K)~='string'or K==''then G=`HttpGet failed: {tostring(K)}`return nil,G end local L,M=
 loadstring(K,I.SSI)if not L then G=`loadstring failed: {tostring(M)}`return nil,G end local N,O=
@@ -3652,9 +3648,6 @@ not(writefile and isfolder and makefolder)then return end if not isfolder(self.C
 makefolder(self.ConfigFolder)end local ao=d.HttpService:JSONEncode(self:BuildConfigData())
 writefile(self.ConfigPath,BeautifyJson(ao))end,'SaveConfig')end N=function()if s.ConfigLoaded then
 s:SaveConfig()end end function s:FetchVersion()
--- [local-patch] Upstream ran loadstring(game:HttpGet('https://raw.githubusercontent.com/Vezise/2026/main/Vez/VexExplorer/VexVersion.lua'))()
--- only to read a version string. No remote code is executed here: a local VexVersion.lua is
--- read when present, otherwise the pinned upstream value is used (see docs/UPSTREAM.md).
 local __versionFile=(function()
 if type(readfile)~='function'or type(isfile)~='function'then return nil end
 local __root=(getgenv and getgenv().HttpSpyLocalRoot)or'HttpSpy'

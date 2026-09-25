@@ -1,5 +1,3 @@
--- this script is not made by vexal scripts / deyvis
-
 local config   = { spaces = 4, highlighting = false };
 local clonef   = clonefunction;
 local str      = string;
@@ -11,7 +9,7 @@ local byte     = clonef(str.byte);
 local match    = clonef(str.match);
 local getfn    = clonef(gme.GetFullName);
 local info     = clonef(debug.getinfo);
-local huge     = math.huge; -- just like your mother
+local huge     = math.huge;
 local Type     = clonef(typeof);
 local Pairs    = clonef(pairs);
 local Assert   = clonef(assert);
@@ -23,7 +21,6 @@ local rawset   = clonef(rawset);
 local Tab      = rep(" ", config.spaces or 4);
 local Serialize;
 
--- Kill me
 local DataTypes = {
   Axes = true,
   BrickColor = true,
@@ -73,7 +70,7 @@ local function Tostring(obj)
 end;
 
 local function serializeArgs(...) 
-  local Serialized = {}; -- For performance reasons
+  local Serialized = {};
 
   for i,v in Pairs({...}) do
     local valueType = Type(v);
@@ -91,7 +88,7 @@ local function serializeArgs(...)
 end;
 
 local function formatFunction(func)
-  if info then -- Creates function prototypes
+  if info then
     local proto = info(func);
     local params = {};
 
@@ -106,7 +103,7 @@ local function formatFunction(func)
 
     return format("function (%s) --[[ Function Name: \"%s\" ]] end", concat(params, ", "), proto.namewhat or proto.name or "");
   end;
-  return "function () end"; -- we cannot create a prototype
+  return "function () end";
 end;
 
 local function formatString(str) 
@@ -133,7 +130,6 @@ local function formatString(str)
   return concat(String);
 end;
 
--- We can do a little trolling and use this for booleans too
 local function formatNumber(numb) 
   if numb == huge then
     return "math.huge";
@@ -183,7 +179,7 @@ Serialize = function(tbl, scope, checked)
   checked[tbl] = true;
   scope = scope or 0;
 
-  local Serialized = {}; -- For performance reasons
+  local Serialized = {};
   local scopeTab = rep(Tab, scope);
   local scopeTab2 = rep(Tab, scope+1);
 
@@ -194,7 +190,7 @@ Serialize = function(tbl, scope, checked)
     local valueType = Type(v);
     local SerializeIndex = #Serialized + 1;
 
-    if valueType == "string" then -- Could of made it inline but its better to manage types this way.
+    if valueType == "string" then
       Serialized[SerializeIndex] = format(config.highlighting and "%s%s\27[32m\"%s\"\27[0m,\n" or "%s%s\"%s\",\n", scopeTab2, formattedIndex, formatString(v));
     elseif valueType == "number" or valueType == "boolean" then
       Serialized[SerializeIndex] = format(config.highlighting and "%s%s\27[33m%s\27[0m,\n" or "%s%s%s,\n", scopeTab2, formattedIndex, formatNumber(v));
@@ -209,13 +205,12 @@ Serialize = function(tbl, scope, checked)
     elseif DataTypes[valueType] then
       Serialized[SerializeIndex] = format("%s%s%s.new(%s),\n", scopeTab2, formattedIndex, valueType, Tostring(v));
     else
-      Serialized[SerializeIndex] = format("%s%s\"%s\",\n", scopeTab2, formattedIndex, Tostring(v)); -- Unsupported types.
+      Serialized[SerializeIndex] = format("%s%s\"%s\",\n", scopeTab2, formattedIndex, Tostring(v));
     end;
 
-    tblLen = tblLen + 1; -- # messes up with nil values
+    tblLen = tblLen + 1;
   end;
 
-  -- Remove last comma
   local lastValue = Serialized[#Serialized];
   if lastValue then
     Serialized[#Serialized] = sub(lastValue, 0, -3) .. "\n";

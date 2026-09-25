@@ -1,26 +1,13 @@
--- Minimal Rojo-free Roblox/executor stub used by tests/run_checks.mjs.
---
--- The standalone build is executed inside this environment by the Luau WebAssembly
--- runtime (see tests/run_checks.mjs). It is deliberately strict: network downloads are
--- refused so a regression that reintroduces remote code loading fails the checks.
---
--- This file is test scaffolding only; it is not shipped to Roblox and it is not a
--- faithful Roblox implementation - it only provides the globals the spy touches.
+local __writes = {}
+local __hooks = {}
+local __captured = {}
+local __refused = {}
+local __reads = {}
 
-local __writes = {}    -- recorded writefile/appendfile calls
-local __hooks = {}     -- recorded hookfunction/hookmetamethod calls
-local __captured = {}  -- closures the spy installed via replaceclosure
-local __refused = {}   -- network/file reads the spy attempted (must stay empty)
-local __reads = {}     -- files served from the virtual filesystem below
-
--- The runner may define __virtualFiles = { ["path"] = "contents" } before this stub to
--- emulate files an executor would have in its workspace folder.
 local function hasVirtualFile(path)
     return type(__virtualFiles) == "table" and __virtualFiles[path] ~= nil
 end
 
--- Every Instance/Enum/UDim2/... value is a permissive proxy: reads return another
--- proxy, writes are stored, calls return a proxy.
 local function proxy(name)
     local store = {}
     return setmetatable(store, {
@@ -81,7 +68,6 @@ game = proxy("game")
 game.GetFullName = function() return "StubGame" end
 game.GetService = function(_, serviceName) return proxy("service:" .. tostring(serviceName)) end
 game.HttpService = {
-    -- marks the decoded table so tests can tell decoding happened
     JSONDecode = function(_, body) return { decoded = true, raw = body } end,
     JSONEncode = function(_, value) return "{}" end,
 }
@@ -149,7 +135,6 @@ http = {
             StatusCode = 200,
             StatusMessage = "OK",
             Body = '{"ok":true}',
-            -- executors return lowercase header names (HTTP/2/3 normalisation)
             Headers = { ["content-type"] = "application/json", ["cf-ray"] = "stub" },
             Url = type(requestTable) == "table" and requestTable.Url or nil,
         }

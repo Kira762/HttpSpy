@@ -1,14 +1,3 @@
---[[
-script originally made by bebomods (https://github.com/NotDSF)
-script heavily upgraded by (Vexal Scripts)
-   + added support for potassium executor
-   + upgraded UI (scrolling stuff and theme)
-   + upgraded file logging system (can log multiple of files within one roblox instance)
-   - cleaned up alot of junk and bugs
-   + fixed logs not saving to a file
-   + fixed not saving previous logs by HttpSpy
-]]
-
 local options = ({ ... })[1] or {
     AutoDecode = true,
     Highlighting = true,
@@ -29,12 +18,6 @@ if options.SaveLogs then
     end)
 end
 
--- [local-patch] Upstream downloaded the serializer from GitHub at runtime:
---   https://raw.githubusercontent.com/VexalScripts/scripts/refs/heads/main/backup/Serializer.lua
--- It is now resolved locally instead, so this script never executes remote code:
---   1. sibling ModuleScript      - require(script.Parent.Serializer)
---   2. local file in the executor workspace, mirroring this repository layout
--- Set getgenv().HttpSpyLocalRoot when the files live somewhere other than "HttpSpy".
 local Serializer
 local HttpSpySerializerFiles = {
     "upstream/VexalScripts/scripts/backup/Serializer.lua",
@@ -124,9 +107,6 @@ local success, err = pcall(function()
         HttpPost = not syn,
         HttpPostAsync = not syn
     }
-    -- [local-patch] Response header names come back lowercased on executors that talk
-    -- HTTP/2 or HTTP/3, which made the auto-decode below never trigger (and made a missing
-    -- Headers table throw). Look Content-Type up case-insensitively. See docs/UPSTREAM.md.
     local function GetHeader(headers, name)
         if Type(headers) ~= "table" then return nil end
         local exact = headers[name]

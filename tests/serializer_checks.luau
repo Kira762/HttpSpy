@@ -1,7 +1,3 @@
--- Assertions for a `Serializer` table in scope (the module or the copy embedded in
--- HttpSpy.standalone.lua). Run by tests/run_checks.mjs; prints CHECK lines and raises
--- on failure so the Node runner exits non-zero.
-
 local failures = 0
 
 local function check(name, ok, detail)

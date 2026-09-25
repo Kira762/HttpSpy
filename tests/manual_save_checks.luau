@@ -1,6 +1,3 @@
--- Manual-save mode checks for HttpSpy (SaveMode = "manual").
--- In manual mode every log line is buffered in memory and only written to disk
--- when API:SaveLogs() flushes the buffer.
 local label = __label or "spy"
 local failures = 0
 local function check(name, ok, detail)
@@ -16,7 +13,6 @@ local api = type(__result) == "table" and __result or {}
 check(label .. ": loads without error", type(__result) == "table", __result)
 check(label .. ": API exposes SaveLogs", type(api.SaveLogs) == "function", tostring(api.SaveLogs))
 
--- Locate the request hook the spy installed on http.request.
 local requestHook = nil
 for _, hook in ipairs(__genv.__hooks) do
     if hook.original == http.request and type(hook.replacement) == "function" then
@@ -26,7 +22,6 @@ for _, hook in ipairs(__genv.__hooks) do
 end
 check(label .. ": request hook installed on http.request", requestHook ~= nil, #__genv.__hooks)
 
--- Fire a request: in manual mode it must be buffered, not written yet.
 if requestHook then
     pcall(requestHook, { Url = "https://example.com/manual", Method = "GET", Headers = {} })
 end
@@ -39,7 +34,6 @@ for _, entry in ipairs(__genv.__fileWrites) do
 end
 check(label .. ": buffered log is NOT written before SaveLogs", wroteBefore == false, #__genv.__fileWrites)
 
--- Flush manually and confirm the buffered log reaches disk.
 local flushed
 pcall(function() flushed = api:SaveLogs() end)
 check(label .. ": SaveLogs runs without error", flushed ~= nil, tostring(flushed))

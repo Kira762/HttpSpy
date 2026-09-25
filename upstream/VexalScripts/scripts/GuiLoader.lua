@@ -1,5 +1,3 @@
--- processed with darklua for better performance
-
 local a=cloneref or function(a)return a end local b=a(game:GetService('Lighting'))local c=a(game:
 GetService('TweenService'))local d=a(game:GetService('Players'))local e=d.LocalPlayer local f=
 Instance.new('ScreenGui',e:WaitForChild('PlayerGui'))local g=Instance.new('BlurEffect',b)local h=

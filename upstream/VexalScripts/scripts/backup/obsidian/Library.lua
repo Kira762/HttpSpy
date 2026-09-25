@@ -180,9 +180,6 @@ string,E:boolean)return typeof(D)=='string'and(D:match('^content://')or D:match(
 or(E==true and D:match('^rbxassetid://')))end type Icon={Url:string,Id:number,IconName:string,
 ImageRectOffset:Vector2,ImageRectSize:Vector2}type IconModule={Icons:{string},GetAsset:(Name:string
 )->Icon?}local D,E=pcall(function()
--- [local-patch] Upstream loadstring'd https://gitlab.com/upio/lucide-roblox-direct/-/raw/main/source.lua
--- at runtime. A local copy of source.lua is used now; the download only happens when you opt
--- in with getgenv().ObsidianAllowRemoteCode = true (see docs/UPSTREAM.md).
 local __iconSource=(function()
 if type(readfile)~='function'or type(isfile)~='function'then return nil end
 local __root=(getgenv and getgenv().HttpSpyLocalRoot)or'HttpSpy'
@@ -193,7 +190,7 @@ if __ok and type(__source)=='string'and#__source>0 then return __source end end
 return nil end)()
 if not __iconSource then
 if not(getgenv and getgenv().ObsidianAllowRemoteCode==true)then
-error('lucide icon source not found locally (see docs/UPSTREAM.md)',0)end
+error('lucide icon source not found locally',0)end
 __iconSource=game:HttpGet([[https://gitlab.com/upio/lucide-roblox-direct/-/raw/main/source.lua]])end
 return(loadstring(__iconSource)::()->IconModule)()
 end)

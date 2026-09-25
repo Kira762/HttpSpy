@@ -1,9 +1,3 @@
--- Assertions for upstream/VexalScripts/scripts/init/loader.lua after it ran inside the
--- stub environment with a virtual executor workspace. The patched loader must use local
--- files for GuiLoader.lua and the per-game script instead of downloading them.
---
--- In scope: __ok, __result, __genv.__reads, __genv.__refused, __genv.__localEndpointRan
-
 local label = "loader"
 local failures = 0
 
